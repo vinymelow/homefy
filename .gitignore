@@ -1,0 +1,25 @@
+# Segredos — nunca commitar
+.env
+.env.*
+!.env.example
+!*.example.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+build/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Arquivos temporarios do OneDrive/Office
+~$*
