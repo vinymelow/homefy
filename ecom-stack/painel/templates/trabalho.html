@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block titulo %}Trabalho #{{ job["id"] }} · ecom-stack{% endblock %}
+{% block conteudo %}
+<h1>Trabalho #{{ job["id"] }}</h1>
+<p>
+  Produto: <a href="/p/{{ job['produto'] }}">{{ job["produto"] }}</a> ·
+  Etapa: <code>{{ job["tipo"] }}</code> ·
+  Estado: <span class="estado {{ job['estado'] }}">{{ job["estado"] }}</span>
+</p>
+{% if meta.get('erro') %}<p class="erro">Erro: {{ meta['erro'] }}</p>{% endif %}
+
+{% if job["estado"] in ("fila", "rodando") %}
+<p class="nota">A executar… <a href="/trabalho/{{ job['id'] }}">atualizar</a></p>
+<meta http-equiv="refresh" content="8">
+{% endif %}
+
+<h2>Log</h2>
+<pre class="log">{{ log }}</pre>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}Ativos · ecom-stack{% endblock %}
+{% block conteudo %}
+<h1>Ativos</h1>
+{% if ativos %}
+<table>
+  <tr><th>Ficheiro</th><th>Tipo</th><th>Tamanho</th><th></th></tr>
+  {% for rel, tipo, tam in ativos %}
+  <tr>
+    <td><code>{{ rel }}</code></td>
+    <td>{{ tipo }}</td>
+    <td>{{ "%.1f"|format(tam / 1024) }} KB</td>
+    <td><a href="/arquivo/{{ rel }}">abrir</a></td>
+  </tr>
+  {% endfor %}
+</table>
+{% else %}
+<p>Nenhum ficheiro em <code>assets/creatives/</code> ou <code>assets/uploads/</code> ainda.</p>
+{% endif %}
+{% endblock %}

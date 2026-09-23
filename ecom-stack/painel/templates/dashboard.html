@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard · ecom-stack{% endblock %}
+{% block conteudo %}
+<h1>Dashboard</h1>
+<p class="nota">Próximo passo: {{ passo }}</p>
+
+<section>
+  <h2>Produtos ({{ briefs|length }})</h2>
+  {% if briefs %}
+  <ul class="lista">
+    {% for b in briefs %}<li><a href="/p/{{ b }}">{{ b }}</a></li>{% endfor %}
+  </ul>
+  {% else %}<p>Nenhum produto ainda.</p>{% endif %}
+  <p><a class="botao" href="/novo">+ Novo Produto</a></p>
+</section>
+
+<section>
+  <h2>Trabalhos recentes</h2>
+  {% if jobs %}
+  <table>
+    <tr><th>#</th><th>Produto</th><th>Etapa</th><th>Estado</th><th></th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td>{{ j["id"] }}</td>
+      <td><a href="/p/{{ j['produto'] }}">{{ j["produto"] }}</a></td>
+      <td>{{ j["tipo"] }}</td>
+      <td><span class="estado {{ j['estado'] }}">{{ j["estado"] }}</span></td>
+      <td><a href="/trabalho/{{ j['id'] }}">log</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p>Sem trabalhos ainda.</p>{% endif %}
+</section>
+
+<section>
+  <h2>Criativos gerados</h2>
+  <p>{{ n_ativos }} ficheiro(s) em <code>assets/</code> — <a href="/ativos">ver ativos</a></p>
+</section>
+{% endblock %}

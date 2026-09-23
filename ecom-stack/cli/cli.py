@@ -13,6 +13,7 @@ Comandos:
   criativo video <slug> [--formato A]    gera vídeo via API configurada no .env
   anuncio plano <slug>     imprime o plano de teste (orçamento, países, métricas)
   doctor                   verifica .env e testa a ligação à Shopify
+  painel [--porta N]       painel web do projeto (http://127.0.0.1:8787 via túnel SSH)
 """
 import os, sys, shutil, datetime
 
@@ -118,9 +119,23 @@ def cmd_doctor():
     else:
         print("\nShopify: sem credenciais — seguir docs/setup-vps.md §2 (única integração obrigatória agora).")
 
+def cmd_painel(args):
+    if any(a in ("-h", "--help", "ajuda") for a in args):
+        sys.exit("uso: python3 cli/cli.py painel [--porta N]   (default 8787, só localhost)")
+    porta = 8787
+    if "--porta" in args:
+        porta = int(args[args.index("--porta") + 1])
+    venv_py = os.path.join(ROOT, "painel", ".venv", "bin", "python")
+    alvo = venv_py if os.path.exists(venv_py) else sys.executable
+    print(f"Painel em http://127.0.0.1:{porta} — do teu PC: ssh -L {porta}:localhost:{porta} root@<vps>")
+    import subprocess as sp
+    sp.run([alvo, "-m", "uvicorn", "painel.app:app", "--host", "127.0.0.1",
+            "--port", str(porta)], cwd=ROOT)
+
 COMMANDS = {
     "status": lambda a: cmd_status(),
     "doctor": lambda a: cmd_doctor(),
+    "painel": lambda a: cmd_painel(a),
     "brief": lambda a: {"novo": cmd_brief_novo, "listar": cmd_brief_listar}[a[0]](*a[1:]),
     "criativo": lambda a: cmd_criativo(a[0], a[1], a[a.index("--slot")+1] if "--slot" in a else None,
                                        a[a.index("--formato")+1] if "--formato" in a else None),

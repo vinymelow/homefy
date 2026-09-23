@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block titulo %}Novo Produto · ecom-stack{% endblock %}
+{% block conteudo %}
+<h1>Novo Produto</h1>
+<p class="nota">Espelha o <code>templates/product-brief.md</code>. Campos vazios ficam como placeholder no ficheiro.</p>
+
+<form method="post" action="/novo" class="ficha">
+
+<fieldset><legend>1. Dados base</legend>
+  <label>Nome do produto* <input name="nome" required></label>
+  <label>Slug* (ex.: escova-alisadora) <input name="slug" required pattern="[a-z0-9-]+"></label>
+  <label>Nicho
+    <select name="nicho">
+      <option value="casa & utilidades">casa & utilidades</option>
+      <option value="beleza & cuidados pessoais">beleza & cuidados pessoais</option>
+    </select></label>
+  <label>URL do produto no Shopify <input name="url_shopify" placeholder="obrigatório antes do Liquid"></label>
+  <div class="grelha">
+    <label>Preço € <input name="preco"></label>
+    <label>Preço riscado € <input name="preco_riscado"></label>
+    <label>Custo + envio € <input name="custo"></label>
+    <label>Margem % <input name="margem"></label>
+  </div>
+  <label>Prazo de entrega <input name="prazo" placeholder="ex.: 6–9 dias úteis com rastreio"></label>
+</fieldset>
+
+<fieldset><legend>2. Classificação (EcomAlchemist)</legend>
+  <label><input type="radio" name="classificacao" value="low" checked> Low-stakes (barato, visual, impulso)</label>
+  <label><input type="radio" name="classificacao" value="high"> High-consideration (claims, preço alto, cético)</label>
+</fieldset>
+
+<fieldset><legend>3. Público e promessa</legend>
+  <label>Avatar 1 (principal) <textarea name="avatar1"></textarea></label>
+  <label>Avatar 2 <textarea name="avatar2"></textarea></label>
+  <label>Avatar 3 <textarea name="avatar3"></textarea></label>
+  <label>Desejos ranqueados (1 mais intenso)</label>
+  <input name="desejos" placeholder="Desejo 1"><input name="desejos" placeholder="Desejo 2"><input name="desejos" placeholder="Desejo 3">
+  <label>Objeções principais</label>
+  <input name="objecoes" placeholder="Objeção 1"><input name="objecoes" placeholder="Objeção 2"><input name="objecoes" placeholder="Objeção 3">
+</fieldset>
+
+<fieldset><legend>4. Referências (Winning Hunter / ad library)</legend>
+  <div class="grelha">
+    <label>Homepage URL <input name="ref_homepage"></label>
+    <label>O que copiar <input name="ref_homepage_nota"></label>
+    <label>PDP URL <input name="ref_pdp"></label>
+    <label>O que copiar <input name="ref_pdp_nota"></label>
+    <label>Hero URL/screenshot <input name="ref_hero"></label>
+    <label>O que copiar <input name="ref_hero_nota"></label>
+    <label>Ads vencedores URL <input name="ref_ads"></label>
+    <label>Frames de referência <input name="ref_ads_nota" placeholder="3–6 frames"></label>
+  </div>
+  <label>Receita estimada da loja alvo <input name="receita_estimada" placeholder="$/mês"></label>
+</fieldset>
+
+<fieldset><legend>5. Oferta e bundles</legend>
+  <div class="grelha">
+    <label>Bundle 1 preço € <input name="bundle1_preco"></label>
+    <label>riscado € <input name="bundle1_riscado"></label>
+    <label>Bundle 2 preço € <input name="bundle2_preco"></label>
+    <label>riscado € <input name="bundle2_riscado"></label>
+    <label>Bundle 3 preço € <input name="bundle3_preco"></label>
+    <label>riscado € <input name="bundle3_riscado"></label>
+  </div>
+  <label>Painel de oferta grátis (só se REAL) <input name="oferta_gratis"></label>
+  <label>Garantia (dias) <input name="garantia"></label>
+</fieldset>
+
+<fieldset><legend>6. Copy</legend>
+  <label>Headline (resultado em "you", 4–8 palavras) <input name="headline"></label>
+  <label>Benefícios (máx. 5)</label>
+  {% for i in range(5) %}<input name="beneficios" placeholder="Benefício {{ i+1 }}">{% endfor %}
+  <label>Como funciona (3 passos)</label>
+  <input name="como_funciona" placeholder="Passo 1"><input name="como_funciona" placeholder="Passo 2"><input name="como_funciona" placeholder="Passo 3">
+  <label>FAQ</label>
+  {% for i in range(4) %}<input name="faq" placeholder="Pergunta {{ i+1 }}">{% endfor %}
+</fieldset>
+
+<fieldset><legend>7. Guardrails de claims</legend>
+  <label><input type="checkbox" name="nenhum_preco_sem_confirmacao" value="x"> Nenhum preço/desconto sem confirmação</label>
+  <label><input type="checkbox" name="claims_suavizados" value="x"> Claims de saúde/beleza suavizados</label>
+  <label><input type="checkbox" name="sem_logos_inventados" value="x"> Sem logos/endorsements inventados</label>
+  <label><input type="checkbox" name="reviews_reais" value="x"> Reviews reais ou "Dramatized customer story"</label>
+  <label><input type="checkbox" name="specs_verificados" value="x"> Specs verificados (senão BLOCKED)</label>
+</fieldset>
+
+<fieldset><legend>8. Assets e identidade</legend>
+  <label>Kit de marca
+    <select name="kit_marca">
+      <option value="">—</option>
+      <option>clinical-clean</option><option>bold-hype</option>
+      <option>premium-elegant/warm</option><option>earthy-natural</option>
+    </select></label>
+  <label>Fotos reais do produto (descrever onde estão) <input name="fotos"></label>
+  <label>Logo <input name="logo"></label>
+  <div class="grelha">
+    <label>Cor principal <input name="cor_principal" placeholder="#000000"></label>
+    <label>Cor de acento <input name="cor_acento" placeholder="#000000"></label>
+    <label>Cor de fundo <input name="cor_fundo" placeholder="#FFFFFF"></label>
+  </div>
+</fieldset>
+
+<fieldset><legend>9. Slots de criativos</legend>
+  {% for slot, desc in slots %}
+  <label><input type="checkbox" name="slots" value="{{ slot }}" {% if slot in ["hero-main","payoff-1/2/3","ugc-video","static-ads-1/2/3"] %}checked{% endif %}> <code>{{ slot }}</code> — {{ desc }}</label>
+  {% endfor %}
+</fieldset>
+
+<button type="submit" class="botao grande">Criar produto</button>
+</form>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block titulo %}{{ slug }} · ecom-stack{% endblock %}
+{% block conteudo %}
+<h1>{{ slug }}</h1>
+
+<section>
+  <h2>Pipeline</h2>
+  {% for tipo, (rotulo, descricao, pago, custo) in etapas.items() %}
+  <form method="post" action="/p/{{ slug }}/etapa/{{ tipo }}" class="etapa"
+        {% if pago %}onsubmit="return confirm('Etapa paga ({{ custo }}). Continuar?')"{% endif %}>
+    <div>
+      <strong>{{ rotulo }}</strong>
+      <small>{{ descricao }}{% if pago %} · <b>custo ≈ {{ custo }}</b>{% endif %}</small>
+    </div>
+    <button class="botao" type="submit">Executar</button>
+  </form>
+  {% endfor %}
+  {% if jobs %}
+  <h3>Histórico deste produto</h3>
+  <table>
+    <tr><th>#</th><th>Etapa</th><th>Estado</th><th></th></tr>
+    {% for j in jobs %}
+    <tr>
+      <td>{{ j["id"] }}</td><td>{{ j["tipo"] }}</td>
+      <td><span class="estado {{ j['estado'] }}">{{ j["estado"] }}</span></td>
+      <td><a href="/trabalho/{{ j['id'] }}">log</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Brief</h2>
+  <article class="brief">{{ brief_html | safe }}</article>
+</section>
+{% endblock %}

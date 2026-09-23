@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block titulo %}ecom-stack{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <strong>ecom-stack</strong>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/novo">+ Novo Produto</a>
+    <a href="/ativos">Ativos</a>
+  </nav>
+</header>
+<main>
+{% block conteudo %}{% endblock %}
+</main>
+</body>
+</html>

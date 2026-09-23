@@ -1,0 +1,19 @@
+# Segredos - NUNCA subir pro GitHub
+.env
+.env.*
+*.pem
+*.key
+!config.example.env
+
+# Banco de dados e dados
+dados/
+
+# Logs
+logs/
+*.log
+
+# Dependências e caches
+node_modules/
+__pycache__/
+*.pyc
+.venv/
