@@ -32,54 +32,54 @@ tags:
 # todos os agents consomem o mesmo contexto estruturado do produto.
 components:
   tasks:
-    - tasks/research-product.md
-    - tasks/research-market.md
-    - tasks/analyze-competitors.md
-    - tasks/create-customer-avatar.md
-    - tasks/create-offer.md
-    - tasks/create-positioning.md
-    - tasks/create-copy.md
-    - tasks/create-page-spec.md
-    - tasks/build-landing-page.md
-    - tasks/build-shopify-page.md
-    - tasks/generate-creative-brief.md
-    - tasks/audit-page.md
-    - tasks/audit-cro.md
-    - tasks/audit-shopify.md
-    - tasks/prepare-launch.md
-    - tasks/smoke-test-project-structure.md
+    - research-product.md
+    - research-market.md
+    - analyze-competitors.md
+    - create-customer-avatar.md
+    - create-offer.md
+    - create-positioning.md
+    - create-copy.md
+    - create-page-spec.md
+    - build-landing-page.md
+    - build-shopify-page.md
+    - generate-creative-brief.md
+    - audit-page.md
+    - audit-cro.md
+    - audit-shopify.md
+    - prepare-launch.md
+    - smoke-test-project-structure.md
   agents:
-    - agents/ecommerce-master.md
-    - agents/market-researcher.md
-    - agents/product-researcher.md
-    - agents/offer-strategist.md
-    - agents/copywriter.md
-    - agents/ux-designer.md
-    - agents/shopify-engineer.md
-    - agents/creative-director.md
-    - agents/cro-specialist.md
-    - agents/qa-specialist.md
+    - ecommerce-master.md
+    - market-researcher.md
+    - product-researcher.md
+    - offer-strategist.md
+    - copywriter.md
+    - ux-designer.md
+    - shopify-engineer.md
+    - creative-director.md
+    - cro-specialist.md
+    - qa-specialist.md
   workflows:
-    - workflows/product-to-page.yaml
-    - workflows/product-to-launch.yaml
-    - workflows/page-optimization.yaml
+    - product-to-page.yaml
+    - product-to-launch.yaml
+    - page-optimization.yaml
   checklists:
-    - checklists/copy.md
-    - checklists/ux.md
-    - checklists/shopify.md
-    - checklists/performance.md
-    - checklists/cro.md
-    - checklists/launch.md
+    - copy.md
+    - ux.md
+    - shopify.md
+    - performance.md
+    - cro.md
+    - launch.md
   templates:
-    - templates/product-brief.md
-    - templates/research-report.md
-    - templates/offer-brief.md
-    - templates/landing-page-spec.md
-    - templates/creative-brief.md
-    - templates/qa-report.md
-    - templates/launch-report.md
+    - product-brief.md
+    - research-report.md
+    - offer-brief.md
+    - landing-page-spec.md
+    - creative-brief.md
+    - qa-report.md
+    - launch-report.md
   tools:
-    - tools/validate-squad.js
+    - validate-squad.js
 
 config:
   extends: extend
