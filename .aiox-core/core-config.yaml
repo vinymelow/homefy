@@ -1,8 +1,9 @@
 markdownExploder: true
 project:
   type: EXISTING_AIOX
-  installedAt: '2025-01-14T00:00:00Z'
-  version: 2.1.0
+  # Alinhado com .aiox-core/.installed-manifest.yaml (aiox-core@5.4.1)
+  installedAt: '2026-09-24T07:56:48.913Z'
+  version: 5.4.1
 user_profile: advanced
 qa:
   qaLocation: docs/qa
@@ -19,9 +20,10 @@ architecture:
   architectureShardedLocation: docs/architecture
 customTechnicalDocuments: null
 devLoadAlwaysFiles:
-  - docs/framework/coding-standards.md
-  - docs/framework/tech-stack.md
-  - docs/framework/source-tree.md
+  # Config real do squad (Fase 22) — descreve o Homefy nesta VPS.
+  - squads/ecommerce-growth/config/coding-standards.md
+  - squads/ecommerce-growth/config/tech-stack.md
+  - squads/ecommerce-growth/config/source-tree.md
 devLoadAlwaysFilesFallback:
   - docs/pt/framework/coding-standards.md
   - docs/pt/framework/tech-stack.md
@@ -59,12 +61,20 @@ ide:
     claude-code: true
     grok: true
     github-copilot: false
-    antigravity: false
+    # Ativado para refletir a realidade: .antigravity/rules/ existe no repo
+    # (antes estava false enquanto os arquivos sincronizados existiam — drift).
+    antigravity: true
 mcp:
   enabled: true
   configLocation: .claude/mcp.json
+  # Gateway Docker MCP (Docker Desktop) — DESATIVADO na VPS headless:
+  # os comandos `docker mcp` são exclusivos do Docker Desktop e a
+  # configuração netstat/WSL não se aplica a este ambiente.
+  # Presets mantidos abaixo para referência em desenvolvimento local.
+  # Na VPS, MCP é gerido nativamente via .claude/mcp.json e `hermes mcp`.
   docker_mcp:
-    enabled: true
+    enabled: false
+    reason: headless-linux-vps
     gateway:
       transport: http
       url: http://localhost:8080/mcp
@@ -77,7 +87,7 @@ mcp:
           - context7
           - desktop-commander
           - playwright
-        description: Core MCPs - no API keys required
+        description: Core MCPs - no API keys required (local dev only)
         api_keys_required: false
         estimated_tokens: 10-15k
       full:
@@ -86,7 +96,7 @@ mcp:
           - desktop-commander
           - playwright
           - exa
-        description: All MCPs - requires EXA_API_KEY for exa
+        description: All MCPs - requires EXA_API_KEY (local dev only)
         api_keys_required: true
         estimated_tokens: 20-25k
     defaultPreset: minimal
@@ -125,15 +135,10 @@ mcp:
       read_config: docker mcp config read
       write_config: docker mcp config write
     troubleshooting:
-      timeout_issue: |
-        If Claude Code shows "Failed to connect to docker-gateway":
-        1. Ensure gateway is running: docker compose -f .docker/mcp/gateway-service.yml up -d
-        2. Check health: curl http://localhost:8080/health
-        3. Verify ~/.claude.json uses HTTP transport, NOT stdio
       gateway_not_starting: |
-        1. Check Docker Desktop is running
-        2. Check port 8080 is available: netstat -an | grep 8080
-        3. Try alternate port in gateway-service.yml
+        Em VPS Linux headless este gateway NÃO é suportado (requer Docker
+        Desktop). Use MCP nativo: .claude/mcp.json ou `hermes mcp add`.
+        Em desktop local: confirme o Docker Desktop ativo e a porta 8080 livre.
   servers: []
 lazyLoading:
   enabled: true
@@ -211,10 +216,12 @@ github:
     enabled: true
 coderabbit_integration:
   enabled: true
-  installation_mode: wsl
-  wsl_config:
-    distribution: Ubuntu
-    installation_path: ~/.local/bin/coderabbit
+  # Multiplataforma: modo nativo funciona em Linux VPS e em desktops locais.
+  # (Anteriormente fixo em WSL — incompatível com a VPS headless.)
+  installation_mode: native
+  general_config:
+    binary: coderabbit
+    install_hint: pip install coderabbit-cli
     working_directory: ${PROJECT_ROOT}
   self_healing:
     enabled: true
@@ -230,10 +237,11 @@ coderabbit_integration:
     skip_if_not_installed: true
     fallback_message: 'CodeRabbit CLI not found. Skipping automated review. Install via: pip install coderabbit-cli'
   commands:
+    # Bash nativo: funciona em Linux/macOS/WSL sem wrapper específico.
     qa_pre_review_uncommitted: |
-      wsl bash -c 'cd ${PROJECT_ROOT} && ~/.local/bin/coderabbit --prompt-only -t uncommitted'
+      cd ${PROJECT_ROOT} && coderabbit --prompt-only -t uncommitted
     qa_story_review_committed: |
-      wsl bash -c 'cd ${PROJECT_ROOT} && ~/.local/bin/coderabbit --prompt-only -t committed --base main'
+      cd ${PROJECT_ROOT} && coderabbit --prompt-only -t committed --base main
   report_location: docs/qa/coderabbit-reports/
 squads:
   templateLocation: templates/squad
@@ -396,6 +404,46 @@ models:
     claude-haiku-4-5:
       contextWindow: 200000
       avgTokensPerPrompt: 1200
+
+# Governança de modelos e custos (Fase 6).
+# Mecanismo de CONTROLE para workflows futuros — não executa chamadas de
+# modelo por si só. Workflows/agentes devem ler estes limites e respeitá-los.
+# O executor Hermes (workflows/executors/hermes-exec.sh) aplica timeout.
+modelGovernance:
+  enabled: true
+  budgetCeiling:
+    dailyUsd: 20
+    monthlyUsd: 200
+    actionOnExceed: block_and_notify
+    counter: .aiox/usage/budget-counter.json
+  maxIterations:
+    default: 25
+    perTask: 15
+    hardStopOnExceed: true
+  timeouts:
+    defaultMinutes: 20
+    longRunningMinutes: 60
+    browserAutomationMinutes: 10
+  routing:
+    default: claude-sonnet-4-6
+    cheap: claude-haiku-4-5
+    complex: claude-opus-4-6
+    note: >
+      Routing AIOX (metadado). A execução real ocorre no Hermes
+      (provider/modelo configurado em ~/.hermes/config.yaml; override via -m).
+  fallback:
+    enabled: true
+    order: [primary, cheap]
+    maxModelRetries: 2
+  failureHandling:
+    onModelError: retry_with_fallback
+    onRepeatedFailure: halt_and_escalate
+    onTimeout: mark_timeout_and_halt
+  autonomousLoops:
+    # Nenhum loop autónomo ilimitado: checkpoints obrigatórios.
+    allowed: true
+    requireCheckpointEvery: 10
+    maxConsecutiveAutoSteps: 30
 frameworkDocsLocation: docs/framework
 projectDocsLocation: docs/architecture/project-decisions
 squadsLocation: squads

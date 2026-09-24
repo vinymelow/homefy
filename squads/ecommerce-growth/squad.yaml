@@ -1,7 +1,7 @@
 # AIOX Squad Manifest — ecommerce-growth
 # Schema: .aiox-core/schemas/squad-schema.json
 name: ecommerce-growth
-version: 0.1.0
+version: 1.0.0
 short-title: Ecommerce Growth Squad
 description: >-
   Operação de growth para e-commerce: pesquisa de produto e mercado,
@@ -28,18 +28,26 @@ tags:
   - copywriting
 
 # Task-first: tasks são o ponto de entrada primário.
+# Product Brief (templates/product-brief.md) é o contrato de entrada central:
+# todos os agents consomem o mesmo contexto estruturado do produto.
 components:
   tasks:
     - tasks/research-product.md
     - tasks/research-market.md
     - tasks/analyze-competitors.md
+    - tasks/create-customer-avatar.md
     - tasks/create-offer.md
+    - tasks/create-positioning.md
     - tasks/create-copy.md
-    - tasks/create-page.md
+    - tasks/create-page-spec.md
+    - tasks/build-landing-page.md
     - tasks/build-shopify-page.md
-    - tasks/generate-creatives.md
+    - tasks/generate-creative-brief.md
     - tasks/audit-page.md
-    - tasks/launch-test.md
+    - tasks/audit-cro.md
+    - tasks/audit-shopify.md
+    - tasks/prepare-launch.md
+    - tasks/smoke-test-project-structure.md
   agents:
     - agents/ecommerce-master.md
     - agents/market-researcher.md
@@ -61,11 +69,26 @@ components:
     - checklists/shopify.md
     - checklists/performance.md
     - checklists/cro.md
+    - checklists/launch.md
   templates:
     - templates/product-brief.md
     - templates/research-report.md
     - templates/offer-brief.md
     - templates/landing-page-spec.md
+    - templates/creative-brief.md
+    - templates/qa-report.md
+    - templates/launch-report.md
+  tools:
+    - tools/validate-squad.js
 
 config:
   extends: extend
+  coding-standards: config/coding-standards.md
+  tech-stack: config/tech-stack.md
+  source-tree: config/source-tree.md
+
+integration:
+  executor: workflows/executors/hermes-exec.sh
+  executor_contract: .aiox/external-runs/
+  execution_runtime: hermes
+  publish_requires_human_approval: true
