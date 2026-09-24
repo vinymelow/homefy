@@ -1,5 +1,20 @@
 # Prompts — Pesquisa e validação de produtos (Winning Hunter)
 
+> Método completo (fundamentos, scoring 0–100, gate ≥70, passagens 1–2):
+> **docs/metodo-pesquisa.md**. Tracker dos candidatos: **research/tracker.md**.
+
+## 0. Passagem 2 — deep dive (colar na IA com o produto escolhido do tracker)
+
+```
+Passagem 2 — deep dive no produto: [NOME]
+1. Reviews 1–3★ das 3 lojas concorrentes principais: 5 queixas mais frequentes
+   com citações — cada uma é um ângulo de ad ou objeção da landing page.
+2. Economia: custo $[X] + envio $[Y], AOV $[Z] → margem e CPA máximo.
+   Sobrevive a €20–50/dia de teste?
+3. Veredito GREEN / AMBER / RED: o que gostas, o que não gostas, riscos.
+   Se não recomendares, diz "não anunciava".
+```
+
 ## 1. Filtros no Winning Hunter (Landers)
 
 - Niche: Home & Kitchen / Beauty (ou o nicho ativo do momento)
