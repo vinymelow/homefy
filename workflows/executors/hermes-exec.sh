@@ -4,8 +4,13 @@
 #   AIOX mantém a orquestração; Hermes executa; artefatos ficam em .aiox/external-runs/
 #
 # Uso:
-#   hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [-T timeout]
+#   hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [-T timeout] [-t toolsets]
 #   hermes-exec.sh -t <slug> -p "prompt inline" [-d workdir]
+#
+# Toolsets: default conservador "terminal,file,skills" (Fase 36 — small
+# context + progressive disclosure). O schema completo de tools do Hermes
+# excede o limite de payload do provider; sobrecarregue com -t "a,b,c" quando
+# a task precisar de mais (ex.: -t "terminal,file,skills,web").
 #
 # Saída (key=value, mesmo formato do aiox-delegate):
 #   STATUS=started|finished|failed|timeout|rejected
@@ -22,9 +27,10 @@
 #   prompt.md command.txt output.md hermes.log usage.json result.json metadata.json
 set -euo pipefail
 
-SLUG=""; PROMPT=""; PROMPT_FILE=""; WORKDIR=""; MODEL=""; TIMEOUT_MIN=""
+SLUG=""; PROMPT=""; PROMPT_FILE=""; WORKDIR=""; MODEL=""; TIMEOUT_MIN=""; TOOLSETS=""
 RUN_BASE=".aiox/external-runs"
 DEFAULT_TIMEOUT_MIN=20
+DEFAULT_TOOLSETS="terminal,file,skills"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -34,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     -d|--workdir) WORKDIR="$2"; shift 2 ;;
     -m|--model) MODEL="$2"; shift 2 ;;
     -T|--timeout) TIMEOUT_MIN="$2"; shift 2 ;;
+    -t|--toolsets) TOOLSETS="$2"; shift 2 ;;
     -r|--run-dir) RUN_BASE="$2"; shift 2 ;;
     -h|--help) grep '^#' "$0" | head -20; exit 0 ;;
     *) echo "ERRO: argumento desconhecido $1" >&2; exit 64 ;;
@@ -46,6 +53,7 @@ if [[ -z "$PROMPT" && -z "$PROMPT_FILE" ]]; then
 fi
 [[ -z "$WORKDIR" ]] && WORKDIR="$(pwd)"
 [[ -z "$TIMEOUT_MIN" ]] && TIMEOUT_MIN="$DEFAULT_TIMEOUT_MIN"
+[[ -z "$TOOLSETS" ]] && TOOLSETS="$DEFAULT_TOOLSETS"
 
 # Pré-checks (status REJECTED) -----------------------------------------------
 if [[ ! -d "$WORKDIR" ]]; then
@@ -87,7 +95,7 @@ if [[ ! -s "$RUN_DIR/prompt.md" ]]; then
 fi
 
 STARTED_AT="$(date -Is)"
-ARGS=(-z "$(cat "$RUN_DIR/prompt.md")" --in "$WORKDIR" --usage-file "$RUN_DIR/usage.json")
+ARGS=(-z "$(cat "$RUN_DIR/prompt.md")" --in "$WORKDIR" --usage-file "$RUN_DIR/usage.json" -t "$TOOLSETS")
 [[ -n "$MODEL" ]] && ARGS+=(-m "$MODEL")
 printf '%q ' "${HERMES[@]}" "${ARGS[@]}" > "$RUN_DIR/command.txt"
 
@@ -111,7 +119,7 @@ elif [[ $EXIT_CODE -ne 0 ]]; then
 else
   # Hermes pode sair 0 mesmo com erro fatal (ex.: HTTP 404 de modelo).
   # Detecta padrões fatais na saída/log e downgrade de SUCCESS → FAILED.
-  FATAL_PATTERNS='^(HTTP [45][0-9][0-9]:)|does not exist or you do not have access|(Invalid API key)|(Traceback \(most recent call last\))|(Connection refused)|(NameResolutionError)'
+  FATAL_PATTERNS='^(HTTP [45][0-9][0-9]:)|does not exist or you do not have access|(Invalid API key)|(Traceback \(most recent call last\))|(Connection refused)|(NameResolutionError)|(payload too large)|^(Request payload too large)'
   if grep -qE "$FATAL_PATTERNS" "$RUN_DIR/output.md" "$RUN_DIR/hermes.log" 2>/dev/null; then
     STATUS="failed"
   elif [[ ! -s "$RUN_DIR/output.md" ]]; then
@@ -123,10 +131,11 @@ FINISHED_AT="$(date -Is)"
 OUTPUT_BYTES=0; [[ -s "$RUN_DIR/output.md" ]] && OUTPUT_BYTES=$(wc -c < "$RUN_DIR/output.md")
 
 # result.json — resultado estruturado (Fase 11) -------------------------------
-python3 - "$RUN_DIR" "$SLUG" "$WORKDIR" "$STATUS" "$EXIT_CODE" "$STARTED_AT" "$FINISHED_AT" "$OUTPUT_BYTES" ${MODEL:+"$MODEL"} <<'PYEOF'
+python3 - "$RUN_DIR" "$SLUG" "$WORKDIR" "$STATUS" "$EXIT_CODE" "$STARTED_AT" "$FINISHED_AT" "$OUTPUT_BYTES" "$TOOLSETS" ${MODEL:+"$MODEL"} <<'PYEOF'
 import json, sys, os
 run_dir, slug, workdir, status, exit_code, started, finished, out_bytes = sys.argv[1:9]
-model = sys.argv[9] if len(sys.argv) > 9 else None
+toolsets = sys.argv[9] if len(sys.argv) > 9 else None
+model = sys.argv[10] if len(sys.argv) > 10 else None
 usage = None
 if os.path.exists(os.path.join(run_dir, "usage.json")):
     try:
@@ -141,6 +150,7 @@ result = {
     "finished_at": finished,
     "exit_code": int(exit_code),
     "model": model,
+    "toolsets": toolsets,
     "workdir": workdir,
     "artifacts": {
         "output": f"{run_dir}/output.md",
@@ -162,6 +172,7 @@ cat > "$RUN_DIR/metadata.json" <<EOF
   "workdir": "$WORKDIR",
   "status": "$STATUS",
   "exit_code": $EXIT_CODE,
+  "toolsets": "$TOOLSETS",
   "started_at": "$STARTED_AT",
   "finished_at": "$FINISHED_AT",
   "output_bytes": $OUTPUT_BYTES

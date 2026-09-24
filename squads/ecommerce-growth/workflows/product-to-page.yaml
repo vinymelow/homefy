@@ -1,0 +1,672 @@
+# ============================================
+# Workflow AIOX — ecommerce-growth / product-to-page
+#
+# Pipeline completo: Product Brief preenchido → pesquisa → estratégia →
+# copy → spec → página construída → QA. A página só é considerada pronta
+# quando o QA (audit-page com qa-specialist) devolve verdict PASS.
+#
+# Execução: cada step delega ao Hermes via workflows/executors/hermes-exec.sh
+# (-t <slug> -f <prompt-file>) e grava .aiox/external-runs/<run>/result.json
+# com status SUCCESS|PARTIAL|FAILED|TIMEOUT|REJECTED + usage (tokens).
+# O orquestrador lê o result.json para decidir o próximo step (gate).
+# Contexto compartilhado entre steps: Product Brief
+# (ecom-stack/templates/product-brief.md).
+#
+# @version 1.0.0
+# ============================================
+
+workflow:
+  id: product-to-page
+  name: "Produto → Página de Vendas"
+  version: "1.0.0"
+  type: pipeline
+  description: >-
+    Converte um Product Brief validado numa landing page de vendas pronta.
+    Fluxo: product input → research-product → research-market →
+    analyze-competitors → create-customer-avatar → create-offer →
+    create-positioning → create-copy → create-page-spec →
+    build-landing-page → QA (audit-page com qa-specialist).
+    Gate: QA PASS obrigatório — sem qa_report.verdict == PASS a página
+    NÃO é considerada pronta e o workflow não fecha.
+  orchestrator: "@ecommerce-master"
+
+  # ============================================
+  # Triggers
+  # ============================================
+  triggers:
+    - type: manual
+      description: "Execução manual via workflow product-to-page"
+    - type: product_brief_ready
+      description: >-
+        Product Brief (ecom-stack/templates/product-brief.md) preenchido e
+        validado: dados base completos, URL do produto no Shopify existente,
+        guardrails de claims (secção 7) todos marcados.
+
+  # ============================================
+  # Inputs
+  # ============================================
+  inputs:
+    product_brief:
+      type: path
+      required: true
+      description: "Product Brief do produto preenchido (templates/product-brief.md)"
+    product_slug:
+      type: string
+      required: true
+      description: "Slug curto do produto (usado em research/landers/<slug>-*.md)"
+
+  # ============================================
+  # Configuration (alinhada com .aiox-core/core-config.yaml → modelGovernance)
+  # ============================================
+  config:
+    executor: "workflows/executors/hermes-exec.sh"
+    result_contract: ".aiox/external-runs/<run>/result.json"
+
+    # modelGovernance.timeouts.defaultMinutes = 20
+    timeouts:
+      step_default: "20m"
+      long_running: "60m"        # modelGovernance.timeouts.longRunningMinutes
+      browser_automation: "10m"  # modelGovernance.timeouts.browserAutomationMinutes
+
+    # modelGovernance.maxIterations.perTask = 15
+    max_iterations: 15
+
+    # modelGovernance.autonomousLoops: checkpoint a cada ≤10 steps autónomos
+    checkpoint:
+      every_steps: 10            # requireCheckpointEvery: 10
+      max_consecutive_auto_steps: 30
+      require_human_decision: true
+      checkpoints_at: ["audit-page"]
+
+    # modelGovernance.failureHandling / fallback
+    retry_policy:
+      max_retries: 1             # retry 1x por step
+      fallback_model: "claude-haiku-4-5"  # fallback.order: [primary, cheap]
+      on_repeated_failure: "halt_and_escalate"
+
+    # Budget ceiling aplicado pelo orquestrador
+    # (modelGovernance.budgetCeiling: dailyUsd 20 / monthlyUsd 200)
+
+  # ============================================
+  # Gate policy (leitura de result.json do executor Hermes)
+  # ============================================
+  gate_policy:
+    pass_when: "result.json status == SUCCESS"
+    partial: >-
+      PARTIAL → checkpoint de revisão humana obrigatório antes de avançar
+      (saída curta/vazia do Hermes; o orquestrador pausa e pede revisão
+      ao operador via @ecommerce-master).
+    failed_timeout: >-
+      FAILED/TIMEOUT → retry 1x (mesmo prompt, sem fallback de modelo) →
+      em novo FAILED/TIMEOUT, fallback 1x com modelo barato + prompt
+      encurtado → persistindo, halt com escalate ao operador.
+    rejected: >-
+      REJECTED → halt imediato: pré-checks do executor falharam
+      (workdir ilegível, prompt vazio/inlegível ou Hermes ausente).
+      Nunca há retry em REJECTED.
+    usage_tracking: "cada run grava usage (tokens) em result.json.usage — orquestrador acumula no budget counter"
+
+  # ============================================
+  # Steps (especificação operacional completa)
+  # ============================================
+  steps:
+    # ----------------------------------------
+    # Fase 1 — Pesquisa
+    # ----------------------------------------
+    - id: research-product
+      name: "Pesquisa de produto"
+      phase: 1_pesquisa
+      task: "tasks/research-product.md"
+      agent: "@product-researcher"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t research-product
+        -f squads/ecommerce-growth/tasks/research-product.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "1. Dados base (preço, custo, margem, prazo de entrega)"
+          - "2. Classificação do produto (high-consideration vs low-stakes)"
+          - "3. Público e promessa (avatars, desejos, objeções)"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-product-report.md"
+        summary: "Viabilidade do produto, specs verificados no fornecedor, claims permitidos/proibidos."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: research-market
+      name: "Pesquisa de mercado"
+      phase: 1_pesquisa
+      task: "tasks/research-market.md"
+      agent: "@market-researcher"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t research-market
+        -f squads/ecommerce-growth/tasks/research-market.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "1. Dados base (nicho)"
+          - "3. Público e promessa (desejos ranqueados)"
+          - "4. Referências escolhidas (Winning Hunter / ad library)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-product-report.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-market-report.md"
+        summary: "Sinais de demanda, ângulos de venda, linguagem do cliente (VOC), objeções de mercado."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: analyze-competitors
+      name: "Análise de concorrentes"
+      phase: 1_pesquisa
+      task: "tasks/analyze-competitors.md"
+      agent: "@market-researcher"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t analyze-competitors
+        -f squads/ecommerce-growth/tasks/analyze-competitors.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "4. Referências escolhidas (homepage / PDP / hero / ads vencedores)"
+          - "4. Receita estimada da loja alvo"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-market-report.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-competitor-analysis.md"
+        summary: >-
+          3 referências desagregadas (estrutura de homepage, ordem de secções
+          da PDP, sistema de compra do hero) + 3–6 frames de ads vencedores +
+          receita estimada que valida a conversão.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 2 — Estratégia (avatar, oferta, posicionamento)
+    # ----------------------------------------
+    - id: create-customer-avatar
+      name: "Criação do avatar de cliente"
+      phase: 2_estrategia
+      task: "tasks/create-customer-avatar.md"
+      agent: "@market-researcher"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t create-customer-avatar
+        -f squads/ecommerce-growth/tasks/create-customer-avatar.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "3. Público e promessa (avatars 1–3, frases típicas)"
+          - "3. Desejos ranqueados"
+          - "3. Objeções principais"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-market-report.md"
+          - "ecom-stack/research/landers/<slug>-competitor-analysis.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-customer-avatar.md"
+        summary: "Avatar principal + secundários, desejos ordenados por intensidade, objeções mapeadas."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: create-offer
+      name: "Criação da oferta"
+      phase: 2_estrategia
+      task: "tasks/create-offer.md"
+      agent: "@offer-strategist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t create-offer
+        -f squads/ecommerce-growth/tasks/create-offer.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "5. Oferta e bundles (bundles ligados a produtos REAIS do Shopify)"
+          - "5. Garantia (tem de bater certo com a política da loja)"
+          - "1. Dados base (preço de venda/riscado, custo, margem)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-competitor-analysis.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-offer-brief.md"
+        summary: >-
+          3 bundles com preço/riscado, painel de oferta grátis (só se real),
+          garantia coerente com a política da loja, âncora de valor.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: create-positioning
+      name: "Criação do posicionamento"
+      phase: 2_estrategia
+      task: "tasks/create-positioning.md"
+      agent: "@offer-strategist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t create-positioning
+        -f squads/ecommerce-growth/tasks/create-positioning.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "3. Público e promessa"
+          - "6. Copy (benefício principal)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-customer-avatar.md"
+          - "ecom-stack/research/landers/<slug>-offer-brief.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-positioning.md"
+        summary: "Promessa central, diferenciação ('porquê tu'), ângulos por avatar."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 3 — Copy e especificação
+    # ----------------------------------------
+    - id: create-copy
+      name: "Criação da copy"
+      phase: 3_copy
+      task: "tasks/create-copy.md"
+      agent: "@copywriter"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t create-copy
+        -f squads/ecommerce-growth/tasks/create-copy.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "6. Copy (headline 4–8 palavras em 'you', 5 benefícios, how-to 3 passos, FAQ 4–6)"
+          - "3. Objeções principais"
+          - "7. Guardrails de claims (obrigatório)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-positioning.md"
+          - "ecom-stack/research/landers/<slug>-offer-brief.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-copy-deck.md"
+        summary: >-
+          Headline, 5 benefícios escaneáveis (1 ideia cada), how-to em 3 passos,
+          FAQ que responde às objeções, zero claims proibidos.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: create-page-spec
+      name: "Especificação da página"
+      phase: 3_copy
+      task: "tasks/create-page-spec.md"
+      agent: "@ux-designer"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t create-page-spec
+        -f squads/ecommerce-growth/tasks/create-page-spec.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "8. Assets e identidade (kit de marca, fotos reais, logo, cores)"
+          - "9. Slots de criativos necessários"
+          - "4. Referências escolhidas (estrutura a copiar)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-copy-deck.md"
+        blueprint_reference: "ecom-stack/docs/blueprint-pagina-de-vendas.md (secção 3: ordem das secções)"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-page-spec.md"
+        summary: >-
+          Ordem de secções conforme blueprint, hero de compra a 2 colunas,
+          slots de criativos mapeados, requisitos responsivos 320→1440px.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 4 — Construção
+    # ----------------------------------------
+    - id: build-landing-page
+      name: "Construção da landing page"
+      phase: 4_build
+      task: "tasks/build-landing-page.md"
+      agent: "@shopify-engineer"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t build-landing-page
+        -f squads/ecommerce-growth/tasks/build-landing-page.md -d . -T 60
+      timeout: "60m"
+      max_iterations: 3
+      inputs:
+        product_brief_sections:
+          - "1. Dados base (URL do produto no Shopify — obrigatório)"
+          - "8. Assets e identidade"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-page-spec.md"
+          - "ecom-stack/research/landers/<slug>-copy-deck.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/ (página construída)"
+          - "tema duplicado com sections Liquid (quando aplicável)"
+        summary: "Página única mobile-first, galeria em sequência de persuasão, bundle selector, CTA único."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 5 — QA (GATE)
+    # ----------------------------------------
+    - id: audit-page
+      name: "QA da página (gate obrigatório)"
+      phase: 5_qa
+      task: "tasks/audit-page.md"
+      agent: "@qa-specialist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t audit-page
+        -f squads/ecommerce-growth/tasks/audit-page.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "7. Guardrails de claims"
+          - "5. Oferta e bundles (consistência de preços/garantia)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/"
+          - "ecom-stack/research/landers/<slug>-page-spec.md"
+          - "ecom-stack/research/landers/<slug>-copy-deck.md"
+        checklists:
+          - "checklists/copy.md"
+          - "checklists/ux.md"
+          - "checklists/shopify.md"
+          - "checklists/performance.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-qa-report.md"
+        summary: "qa_report com verdict PASS|FAIL por checklist, issues classificadas por severidade."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS' AND qa_report.verdict == 'PASS'"
+        fail_action: "voltar a build-landing-page (máx. 2 iterações adicionais) → persistindo, halt"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+        qa_loop_max: 2
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador com qa-report anexado"
+
+  # ============================================
+  # Canonical Execution Contract (sequence)
+  # ============================================
+  sequence:
+    - step: research_product
+      id: research-product
+      agent: "@product-researcher"
+      task: "tasks/research-product.md"
+      action: "Pesquisar produto e verificar specs/claims"
+      creates: product_report
+      next: research-market
+      on_failure: retry_then_halt
+
+    - step: research_market
+      id: research-market
+      agent: "@market-researcher"
+      task: "tasks/research-market.md"
+      action: "Pesquisar demanda, ângulos e VOC do mercado"
+      requires: product_report
+      creates: market_report
+      next: analyze-competitors
+      on_failure: retry_then_halt
+
+    - step: analyze_competitors
+      id: analyze-competitors
+      agent: "@market-researcher"
+      task: "tasks/analyze-competitors.md"
+      action: "Desagregar 3 referências e ads vencedores"
+      requires: market_report
+      creates: competitor_analysis
+      next: create-customer-avatar
+      on_failure: retry_then_halt
+
+    - step: create_customer_avatar
+      id: create-customer-avatar
+      agent: "@market-researcher"
+      task: "tasks/create-customer-avatar.md"
+      action: "Consolidar avatares, desejos e objeções"
+      requires: competitor_analysis
+      creates: customer_avatar
+      next: create-offer
+      on_failure: retry_then_halt
+
+    - step: create_offer
+      id: create-offer
+      agent: "@offer-strategist"
+      task: "tasks/create-offer.md"
+      action: "Definir bundles, painel grátis e garantia"
+      requires: customer_avatar
+      creates: offer_brief
+      next: create-positioning
+      on_failure: retry_then_halt
+
+    - step: create_positioning
+      id: create-positioning
+      agent: "@offer-strategist"
+      task: "tasks/create-positioning.md"
+      action: "Definir promessa central e diferenciação"
+      requires: offer_brief
+      creates: positioning
+      next: create-copy
+      on_failure: retry_then_halt
+
+    - step: create_copy
+      id: create-copy
+      agent: "@copywriter"
+      task: "tasks/create-copy.md"
+      action: "Escrever headline, benefícios, FAQ e CTA"
+      requires: positioning
+      creates: copy_deck
+      next: create-page-spec
+      on_failure: retry_then_halt
+
+    - step: create_page_spec
+      id: create-page-spec
+      agent: "@ux-designer"
+      task: "tasks/create-page-spec.md"
+      action: "Especificar secções, slots e requisitos responsivos"
+      requires: copy_deck
+      creates: page_spec
+      next: build-landing-page
+      on_failure: retry_then_halt
+
+    - step: build_landing_page
+      id: build-landing-page
+      agent: "@shopify-engineer"
+      task: "tasks/build-landing-page.md"
+      action: "Construir página conforme spec e copy"
+      requires: page_spec
+      creates: landing_page
+      next: audit-page
+      on_failure: retry_then_halt
+
+    - step: audit_page
+      id: audit-page
+      agent: "@qa-specialist"
+      task: "tasks/audit-page.md"
+      action: "Auditar página contra os 4 checklists e emitir verdict"
+      requires: landing_page
+      creates: qa_report
+      next: workflow_end
+      on_failure: retry_then_halt
+      on_fail_verdict: return_to_build_landing_page
+      max_iterations: 2
+
+  # ============================================
+  # Handoff prompts (transições de agente)
+  # ============================================
+  handoff_prompts:
+    product_researcher_to_market_researcher: >-
+      Entrega: product-report com specs verificados e claims mapeados.
+      Próximo passo: validar demanda de mercado e linguagem do cliente
+      para o MESMO produto — não contradizer specs já verificados.
+    market_researcher_to_offer_strategist: >-
+      Entrega: market-report, competitor-analysis e customer-avatar.
+      Próximo passo: construir oferta com bundles REAIS do Shopify e
+      garantia coerente com a política da loja.
+    offer_strategist_to_copywriter: >-
+      Entrega: offer-brief e positioning.
+      Próximo passo: escrever copy em linguagem 'you', 4–8 palavras na
+      headline, respeitando os guardrails de claims do brief.
+    copywriter_to_ux_designer: >-
+      Entrega: copy-deck final.
+      Próximo passo: especificar secções conforme o blueprint (ordem fixa)
+      e mapear slots de criativos da secção 9 do brief.
+    ux_designer_to_shopify_engineer: >-
+      Entrega: page-spec + copy-deck.
+      Próximo passo: construir a página mobile-first; produto tem de
+      existir na loja antes da conversão Liquid; nada hard-coded.
+    shopify_engineer_to_qa_specialist: >-
+      Entrega: landing page construída.
+      Próximo passo: auditar contra checklists copy/ux/shopify/performance;
+      verdict PASS é obrigatório para a página ser considerada pronta.
+
+  # ============================================
+  # Error Handlers
+  # ============================================
+  error_handlers:
+    retry_then_halt:
+      description: "Retry 1x → fallback com modelo barato → halt com escalate"
+      actions:
+        - log: "Step falhou (FAILED/TIMEOUT)"
+        - retry: 1
+        - fallback_model: "claude-haiku-4-5"
+        - on_repeated_failure: halt_and_escalate
+        - escalate: "@ecommerce-master"
+    review_partial:
+      description: "PARTIAL exige revisão humana antes de continuar"
+      actions:
+        - log: "Saída parcial do Hermes"
+        - await_decision: true
+    qa_reject:
+      description: "QA FAIL volta para build (máx. 2 iterações)"
+      actions:
+        - log: "QA FAIL — retornar ao shopify-engineer"
+        - return_to: build-landing-page
+        - max_attempts: 2
+        - on_max_attempts: escalate_to_human
+
+  # ============================================
+  # State
+  # ============================================
+  state:
+    persistence:
+      enabled: true
+      location: ".aiox/workflow-state/product-to-page/"
+      format: yaml
+    tracked_fields:
+      - current_step
+      - product_slug
+      - attempt_count
+      - qa_iterations
+      - started_at
+      - last_updated
+      - accumulated_usage_tokens
+
+  # ============================================
+  # Flow Diagram
+  # ============================================
+  flow_diagram: |
+    flowchart TD
+      A[Pesquisa produto] --> B[Pesquisa mercado]
+      B --> C[Análise concorrentes]
+      C --> D[Customer avatar]
+      D --> E[Oferta]
+      E --> F[Posicionamento]
+      F --> G[Copy]
+      G --> H[Page spec]
+      H --> I[Build landing page]
+      I --> J{QA PASS}
+      J -->|SIM| K[Página pronta]
+      J -->|NÃO máx 2x| I
+      J -->|persiste| L[Halt + escalate humano]
+
+  # ============================================
+  # Metadata
+  # ============================================
+  metadata:
+    author: "Homefy — squad ecommerce-growth"
+    created_date: "2026-09-24"
+    version: "1.0.0"
+    tags:
+      - ecommerce-growth
+      - pipeline
+      - landing-page
+      - qa-gate
