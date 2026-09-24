@@ -1,0 +1,4 @@
+{
+  "mcpServers": {},
+  "_homefy_note": "Nenhum servidor MCP ativo por decisão conservadora (Fase 25). Filesystem/terminal já são nativos do Hermes (toolsets). GitHub MCP fica pendente de token do operador (nunca commitar tokens). Browser é toolset nativo do Hermes (dependência de sistema pendente na VPS). Gateway Docker MCP desativado — ver .aiox-core/core-config.yaml → mcp.docker_mcp.enabled: false."
+}

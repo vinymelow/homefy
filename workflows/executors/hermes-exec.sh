@@ -7,10 +7,11 @@
 #   hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [-T timeout] [-t toolsets]
 #   hermes-exec.sh -t <slug> -p "prompt inline" [-d workdir]
 #
-# Toolsets: default conservador "terminal,file,skills" (Fase 36 — small
-# context + progressive disclosure). O schema completo de tools do Hermes
-# excede o limite de payload do provider; sobrecarregue com -t "a,b,c" quando
-# a task precisar de mais (ex.: -t "terminal,file,skills,web").
+# Toolsets: default conservador "terminal,file" (Fase 36 — small
+# context + progressive disclosure). O toolset "skills" e o schema completo
+# de tools do Hermes excedem o limite de payload do provider Groq desta conta;
+# sobrecarregue com -t "a,b,c" quando a task precisar de mais
+# (ex.: -t "terminal,file,web") e com consciência do rate limit da conta.
 #
 # Saída (key=value, mesmo formato do aiox-delegate):
 #   STATUS=started|finished|failed|timeout|rejected
@@ -30,7 +31,7 @@ set -euo pipefail
 SLUG=""; PROMPT=""; PROMPT_FILE=""; WORKDIR=""; MODEL=""; TIMEOUT_MIN=""; TOOLSETS=""
 RUN_BASE=".aiox/external-runs"
 DEFAULT_TIMEOUT_MIN=20
-DEFAULT_TOOLSETS="terminal,file,skills"
+DEFAULT_TOOLSETS="terminal,file"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

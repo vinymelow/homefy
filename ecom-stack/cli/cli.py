@@ -14,6 +14,9 @@ Comandos:
   anuncio plano <slug>     imprime o plano de teste (orçamento, países, métricas)
   doctor                   verifica .env e testa a ligação à Shopify
   painel [--porta N]       painel web do projeto (http://127.0.0.1:8787 via túnel SSH)
+  esquadrao validar        valida o squad ecommerce-growth (AIOX)
+  agente executar <slug> <prompt-file> [--timeout N] [--model M]
+                           delega uma task ao Hermes (executor AIOX→Hermes)
 """
 import os, sys, shutil, datetime
 
@@ -132,6 +135,31 @@ def cmd_painel(args):
     sp.run([alvo, "-m", "uvicorn", "painel.app:app", "--host", "127.0.0.1",
             "--port", str(porta)], cwd=ROOT)
 
+def cmd_esquadrao_validar():
+    import subprocess as sp
+    repo_root = os.path.dirname(ROOT)
+    script = os.path.join(repo_root, "squads", "ecommerce-growth", "tools", "validate-squad.js")
+    if not os.path.exists(script):
+        sys.exit(f"Validador não encontrado: {script}")
+    r = sp.run(["node", script, "ecommerce-growth"], cwd=repo_root)
+    sys.exit(r.returncode)
+
+def cmd_agente_executar(slug, prompt_file, timeout=None, model=None):
+    import subprocess as sp
+    repo_root = os.path.dirname(ROOT)
+    executor = os.path.join(repo_root, "workflows", "executors", "hermes-exec.sh")
+    if not os.path.exists(executor):
+        sys.exit(f"Executor não encontrado: {executor}")
+    if not os.path.exists(prompt_file):
+        sys.exit(f"Prompt file não encontrado: {prompt_file}")
+    cmd = [executor, "-t", slugify(slug), "-f", os.path.abspath(prompt_file), "-d", repo_root]
+    if timeout:
+        cmd += ["-T", str(timeout)]
+    if model:
+        cmd += ["-m", model]
+    r = sp.run(cmd, cwd=repo_root)
+    sys.exit(r.returncode)
+
 COMMANDS = {
     "status": lambda a: cmd_status(),
     "doctor": lambda a: cmd_doctor(),
@@ -140,6 +168,11 @@ COMMANDS = {
     "criativo": lambda a: cmd_criativo(a[0], a[1], a[a.index("--slot")+1] if "--slot" in a else None,
                                        a[a.index("--formato")+1] if "--formato" in a else None),
     "anuncio": lambda a: {"plano": cmd_anuncio_plano}[a[0]](*a[1:]),
+    "esquadrao": lambda a: {"validar": lambda *args: cmd_esquadrao_validar()}[a[0]](*a[1:]),
+    "agente": lambda a: {"executar": lambda *args: cmd_agente_executar(
+        args[0], args[1],
+        args[args.index("--timeout")+1] if "--timeout" in args else None,
+        args[args.index("--model")+1] if "--model" in args else None)}[a[0]](*a[1:]),
 }
 
 if __name__ == "__main__":

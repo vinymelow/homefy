@@ -1,0 +1,538 @@
+# ============================================
+# Workflow AIOX — ecommerce-growth / product-to-launch
+#
+# Pipeline de lançamento: inclui o workflow product-to-page como Fase 1
+# (página só avança com QA PASS), seguido de criativos, tracking,
+# preparação de lançamento, auditoria Shopify e QA final.
+#
+# GATE FINAL: publicação exige aprovação humana explícita. O step publish é
+# manual_approval / blocked_by_default: true / requires_human_approval: true —
+# alinhado com AGENTS.md (deploy/publicação só com confirmação explícita do
+# operador) e squad.yaml (publish_requires_human_approval: true).
+#
+# Execução: steps autónomos delegam ao Hermes via workflows/executors/hermes-exec.sh
+# (-t <slug> -f <prompt-file>) e gravam .aiox/external-runs/<run>/result.json
+# (status SUCCESS|PARTIAL|FAILED|TIMEOUT|REJECTED + usage em tokens).
+#
+# @version 1.0.0
+# ============================================
+
+workflow:
+  id: product-to-launch
+  name: "Produto → Lançamento"
+  version: "1.0.0"
+  type: pipeline-launch
+  description: >-
+    Pipeline completo de lançamento: product-to-page como fase inicial
+    (QA PASS obrigatório), depois generate-creative-brief → setup-tracking →
+    prepare-launch → audit-shopify → final QA → publish.
+    Gate final: human_approval obrigatório — o step publish é
+    manual_approval bloqueado por default e nenhuma publicação (Shopify,
+    Meta, TikTok) ocorre sem aprovação humana explícita registada.
+  orchestrator: "@ecommerce-master"
+
+  # ============================================
+  # Triggers
+  # ============================================
+  triggers:
+    - type: manual
+      description: "Execução manual via workflow product-to-launch"
+    - type: product_brief_ready
+      description: >-
+        Product Brief (ecom-stack/templates/product-brief.md) preenchido e
+        validado + produto publicado na loja Shopify (secção 1 do brief).
+
+  # ============================================
+  # Inputs
+  # ============================================
+  inputs:
+    product_brief:
+      type: path
+      required: true
+      description: "Product Brief do produto preenchido (templates/product-brief.md)"
+    product_slug:
+      type: string
+      required: true
+      description: "Slug curto do produto (usado em research/landers/<slug>-*.md)"
+    performance_baseline:
+      type: object
+      required: false
+      description: "Baseline de performance se o produto já foi testado antes"
+
+  # ============================================
+  # Configuration (alinhada com .aiox-core/core-config.yaml → modelGovernance)
+  # ============================================
+  config:
+    executor: "workflows/executors/hermes-exec.sh"
+    result_contract: ".aiox/external-runs/<run>/result.json"
+
+    # modelGovernance.timeouts.defaultMinutes = 20
+    timeouts:
+      step_default: "20m"
+      long_running: "60m"        # audit-shopify / prepare-launch
+      browser_automation: "10m"  # testes de tracking em browser
+
+    # modelGovernance.maxIterations.perTask = 15
+    max_iterations: 15
+
+    # modelGovernance.autonomousLoops: checkpoints a cada ≤10 steps autónomos
+    checkpoint:
+      every_steps: 10            # requireCheckpointEvery: 10
+      max_consecutive_auto_steps: 30
+      require_human_decision: true
+      checkpoints_at: ["audit-page", "final-qa", "publish"]
+
+    # modelGovernance.failureHandling / fallback
+    retry_policy:
+      max_retries: 1             # retry 1x por step
+      fallback_model: "claude-haiku-4-5"  # fallback.order: [primary, cheap]
+      on_repeated_failure: "halt_and_escalate"
+
+    # Governança de publicação (dupla trava, não remover)
+    publish_requires_human_approval: true
+    publish_blocked_by_default: true
+
+  # ============================================
+  # Gate policy (leitura de result.json do executor Hermes)
+  # ============================================
+  gate_policy:
+    pass_when: "result.json status == SUCCESS"
+    partial: >-
+      PARTIAL → checkpoint de revisão humana obrigatório antes de avançar.
+    failed_timeout: >-
+      FAILED/TIMEOUT → retry 1x → fallback 1x com modelo barato + prompt
+      encurtado → persistindo, halt com escalate ao operador.
+    rejected: "REJECTED → halt imediato (pré-checks do executor falharam)."
+    usage_tracking: "usage (tokens) acumulado por run em result.json.usage para o budget counter"
+
+  # ============================================
+  # Steps
+  # ============================================
+  steps:
+    # ----------------------------------------
+    # Fase 1 — product-to-page (sub-workflow, gate QA PASS)
+    # ----------------------------------------
+    - id: product-to-page
+      name: "Fase 1 — Produto → Página de Vendas (sub-workflow)"
+      phase: 1_pagina
+      type: sub_workflow
+      workflow: "workflows/product-to-page.yaml"
+      agent: "@ecommerce-master"
+      executor: "orquestrador AIOX (não usa hermes-exec diretamente)"
+      timeout: "60m"
+      inputs:
+        product_brief_sections:
+          - "Todas as secções (o sub-workflow define o consumo por step)"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/"
+          - "ecom-stack/research/landers/<slug>-qa-report.md"
+        summary: "Página construída com QA PASS."
+      gate:
+        reads: "ecom-stack/research/landers/<slug>-qa-report.md"
+        pass_when: "qa_report.verdict == 'PASS' (sub-workflow product-to-page fechado com sucesso)"
+        fail_action: "sub-workflow gere o próprio loop (build → QA, máx. 2); halt propagado"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 0
+        fallback: "reexecutar sub-workflow a partir do step que falhou (state em .aiox/workflow-state/)"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 2 — Criativos e tracking
+    # ----------------------------------------
+    - id: generate-creative-brief
+      name: "Geração do creative brief"
+      phase: 2_criativos_tracking
+      task: "tasks/generate-creative-brief.md"
+      agent: "@creative-director"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t generate-creative-brief
+        -f squads/ecommerce-growth/tasks/generate-creative-brief.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "8. Assets e identidade (kit de marca travado, fotos reais, logo, cores)"
+          - "9. Slots de criativos necessários (hero-main, payoffs, infographic-mech, how-to, ugc-video, static-ads)"
+          - "2. Classificação do produto (define galeria 9–11 frames vs curta)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-page-spec.md"
+          - "ecom-stack/research/landers/<slug>-copy-deck.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-creative-brief.md"
+        summary: "Brief de criativos por slot: ângulo, formato, referência do ad library, requisitos de imagem."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: setup-tracking
+      name: "Configuração e teste de tracking"
+      phase: 2_criativos_tracking
+      task: "tasks/build-shopify-page.md"
+      agent: "@shopify-engineer"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t setup-tracking
+        -f squads/ecommerce-growth/tasks/build-shopify-page.md -d . -T 20
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "1. Dados base (URL do produto na loja)"
+        env_requirements: "ecom-stack/config/.env com SHOPIFY_STORE_DOMAIN, META_ACCESS_TOKEN, META_AD_ACCOUNT_ID (valores NUNCA expostos em artefatos)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-tracking-report.md"
+        summary: >-
+          Pixel + CAPI com evento Purchase testado end-to-end, deduplicação
+          ativa, eventos de ViewContent/AddToCart/InitiateCheckout verificados.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS' AND tracking_report.purchase_event_tested == true"
+        block_reason: "Sem evento Purchase verificado não há lançamento — métricas seriam cegas."
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 3 — Preparação e auditoria
+    # ----------------------------------------
+    - id: prepare-launch
+      name: "Preparação do lançamento"
+      phase: 3_lancamento
+      task: "tasks/prepare-launch.md"
+      agent: "@ecommerce-master"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t prepare-launch
+        -f squads/ecommerce-growth/tasks/prepare-launch.md -d . -T 60
+      timeout: "60m"
+      inputs:
+        product_brief_sections:
+          - "1. Dados base (preço/estoque a confirmar na loja)"
+          - "5. Oferta e bundles (garantia vs política da loja)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-qa-report.md"
+          - "ecom-stack/research/landers/<slug>-creative-brief.md"
+          - "ecom-stack/research/landers/<slug>-tracking-report.md"
+        cli_reference: "python3 ecom-stack/cli/cli.py anuncio plano <slug> (orçamento €20–50/dia × 3 dias, países, métricas)"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-launch-report.md"
+        summary: "Plano de teste definido: orçamento, países, criativos, métricas de mata/continua/escala, regras de paragem."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: audit-shopify
+      name: "Auditoria Shopify do tema"
+      phase: 3_lancamento
+      task: "tasks/audit-shopify.md"
+      agent: "@shopify-engineer"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t audit-shopify
+        -f squads/ecommerce-growth/tasks/audit-shopify.md -d . -T 60
+      timeout: "60m"
+      inputs:
+        product_brief_sections:
+          - "7. Guardrails de claims (consistência no tema)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/"
+        checklists:
+          - "checklists/shopify.md"
+          - "checklists/performance.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-shopify-audit.md"
+        summary: "Liquid válido, sections/snippets identificados, responsivo, mídia otimizada, zero secrets hard-coded."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS' AND shopify_audit.secrets_found == false"
+        block_reason: "Segredos no tema = bloqueio imediato (AGENTS.md regra 1)."
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 4 — QA final (GATE)
+    # ----------------------------------------
+    - id: final-qa
+      name: "QA final de lançamento (gate obrigatório)"
+      phase: 4_qa_final
+      task: "tasks/audit-page.md"
+      agent: "@qa-specialist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t final-qa
+        -f squads/ecommerce-growth/tasks/audit-page.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "7. Guardrails de claims"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-qa-report.md"
+          - "ecom-stack/research/landers/<slug>-launch-report.md"
+          - "ecom-stack/research/landers/<slug>-shopify-audit.md"
+          - "ecom-stack/research/landers/<slug>-tracking-report.md"
+        checklists:
+          - "checklists/copy.md"
+          - "checklists/ux.md"
+          - "checklists/shopify.md"
+          - "checklists/performance.md"
+          - "checklists/cro.md"
+          - "checklists/launch.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-final-qa-report.md"
+        summary: "Verdict final sobre os 6 checklists — inclui launch.md (preços/estoque/políticas/criativos/aprovação/rollback)."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS' AND final_qa_report.verdict == 'PASS'"
+        fail_action: "corrigir issues e repetir final-qa (máx. 2 iterações) → persistindo, halt"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+        qa_loop_max: 2
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador com final-qa-report anexado"
+
+    # ----------------------------------------
+    # Fase 5 — Publish (GATE FINAL HUMANO)
+    # ----------------------------------------
+    - id: publish
+      name: "Publicar lançamento (aprovação humana obrigatória)"
+      phase: 5_publish
+      type: manual_approval
+      blocked_by_default: true
+      requires_human_approval: true
+      agent: "@ecommerce-master"
+      executor: "nenhum — step manual executado pelo operador humano"
+      inputs:
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-final-qa-report.md"
+          - "ecom-stack/research/landers/<slug>-launch-report.md"
+      outputs:
+        artifacts:
+          - "registo de aprovação humana (quem, quando, decisão GO)"
+          - "tema publicado / campanha criada na plataforma"
+        summary: "Publicação tema live + ativação do plano de teste nas plataformas."
+      gate:
+        pass_when: "aprovação humana explícita registada (decisão GO assinada pelo operador)"
+        blocked_by_default: true
+        fail_action: "permanece bloqueado — nenhum publish automático existe neste workflow"
+      onFailure:
+        retry: 0
+        fallback: "não aplicável — step manual"
+        then: halt
+        escalate: "workflow aguarda decisão humana indefinidamente (sem timeout de auto-aprovação)"
+
+  # ============================================
+  # Canonical Execution Contract (sequence)
+  # ============================================
+  sequence:
+    - step: run_product_to_page
+      id: product-to-page
+      agent: "@ecommerce-master"
+      task: "workflows/product-to-page.yaml"
+      action: "Executar sub-workflow completo de página (gate QA PASS)"
+      creates: landing_page_qa_pass
+      next: generate-creative-brief
+      on_failure: halt_and_escalate
+
+    - step: generate_creative_brief
+      id: generate-creative-brief
+      agent: "@creative-director"
+      task: "tasks/generate-creative-brief.md"
+      action: "Gerar creative brief por slot de criativo"
+      requires: landing_page_qa_pass
+      creates: creative_brief
+      next: setup-tracking
+      on_failure: retry_then_halt
+
+    - step: setup_tracking
+      id: setup-tracking
+      agent: "@shopify-engineer"
+      task: "tasks/build-shopify-page.md"
+      action: "Configurar e testar pixel + CAPI (Purchase verificado)"
+      requires: creative_brief
+      creates: tracking_report
+      next: prepare-launch
+      on_failure: retry_then_halt
+
+    - step: prepare_launch
+      id: prepare-launch
+      agent: "@ecommerce-master"
+      task: "tasks/prepare-launch.md"
+      action: "Definir plano de teste (orçamento, países, métricas)"
+      requires: tracking_report
+      creates: launch_report
+      next: audit-shopify
+      on_failure: retry_then_halt
+
+    - step: audit_shopify
+      id: audit-shopify
+      agent: "@shopify-engineer"
+      task: "tasks/audit-shopify.md"
+      action: "Auditar tema: Liquid, responsivo, mídia, zero secrets"
+      requires: launch_report
+      creates: shopify_audit
+      next: final-qa
+      on_failure: retry_then_halt
+
+    - step: final_qa
+      id: final-qa
+      agent: "@qa-specialist"
+      task: "tasks/audit-page.md"
+      action: "QA final sobre os 6 checklists (inclui launch.md)"
+      requires: shopify_audit
+      creates: final_qa_report
+      next: publish
+      on_failure: retry_then_halt
+      on_fail_verdict: fix_and_repeat
+      max_iterations: 2
+
+    - step: publish_launch
+      id: publish
+      agent: "@ecommerce-master"
+      task: "manual-approval"
+      action: "Publicar apenas após aprovação humana explícita (GO registado)"
+      requires: final_qa_report
+      creates: launch_published
+      next: workflow_end
+      on_failure: workflow_blocked_awaits_human
+
+  # ============================================
+  # Handoff prompts (transições de agente)
+  # ============================================
+  handoff_prompts:
+    to_creative_director: >-
+      Entrega: página com QA PASS + page-spec + copy-deck.
+      Próximo passo: creative brief por slot da secção 9 do brief; kit de
+      marca travado; clones apenas de ads vencedores com spend visível.
+    to_shopify_engineer_tracking: >-
+      Entrega: creative-brief.
+      Próximo passo: tracking — Purchase testado end-to-end com
+      deduplicação; nunca expor valores do .env em artefatos.
+    to_ecommerce_master_prepare: >-
+      Entrega: tracking-report + qa-report + creative-brief.
+      Próximo passo: plano de teste via cli/cli.py anuncio plano <slug>;
+      regras de paragem do blueprint secção 7.
+    to_shopify_engineer_audit: >-
+      Entrega: launch-report.
+      Próximo passo: auditoria do tema contra checklists shopify/performance;
+      qualquer secret hard-coded = bloqueio imediato.
+    to_qa_specialist_final: >-
+      Entrega: todos os relatórios (qa, launch, shopify-audit, tracking).
+      Próximo passo: QA final sobre os 6 checklists; verdict PASS é
+      pré-requisito para o pedido de aprovação humana.
+    to_human_publish: >-
+      Entrega: final-qa-report PASS + launch-report.
+      Decisão humana obrigatória: GO publica, ABORT encerra. Sem decisão
+      registada o workflow permanece bloqueado — não há auto-aprovação.
+
+  # ============================================
+  # Error Handlers
+  # ============================================
+  error_handlers:
+    retry_then_halt:
+      description: "Retry 1x → fallback com modelo barato → halt com escalate"
+      actions:
+        - log: "Step falhou (FAILED/TIMEOUT)"
+        - retry: 1
+        - fallback_model: "claude-haiku-4-5"
+        - on_repeated_failure: halt_and_escalate
+        - escalate: "@ecommerce-master"
+    halt_and_escalate:
+      description: "Falha no sub-workflow ou bloqueio crítico"
+      actions:
+        - log: "Halt — escalate ao operador"
+        - save_state: true
+        - await_decision: true
+    fix_and_repeat:
+      description: "QA final FAIL → corrigir e repetir (máx. 2)"
+      actions:
+        - log: "Final QA FAIL"
+        - return_to: responsible_agent_por_checklist
+        - max_attempts: 2
+        - on_max_attempts: escalate_to_human
+    workflow_blocked_awaits_human:
+      description: "Publish permanece bloqueado até aprovação humana explícita"
+      actions:
+        - log: "Aguardando decisão humana (GO/ABORT)"
+        - blocked_by_default: true
+
+  # ============================================
+  # State
+  # ============================================
+  state:
+    persistence:
+      enabled: true
+      location: ".aiox/workflow-state/product-to-launch/"
+      format: yaml
+    tracked_fields:
+      - current_step
+      - product_slug
+      - attempt_count
+      - qa_iterations
+      - human_approval_status
+      - started_at
+      - last_updated
+      - accumulated_usage_tokens
+
+  # ============================================
+  # Flow Diagram
+  # ============================================
+  flow_diagram: |
+    flowchart TD
+      A[product-to-page QA PASS] --> B[Creative brief]
+      B --> C[Setup tracking Purchase OK]
+      C --> D[Prepare launch plano teste]
+      D --> E[Audit Shopify zero secrets]
+      E --> F{Final QA PASS}
+      F -->|SIM| G{Aprovação humana}
+      F -->|NÃO máx 2x| E
+      G -->|GO registado| H[Publicar]
+      G -->|sem decisão| I[Bloqueado indefinidamente]
+
+  # ============================================
+  # Metadata
+  # ============================================
+  metadata:
+    author: "Homefy — squad ecommerce-growth"
+    created_date: "2026-09-24"
+    version: "1.0.0"
+    tags:
+      - ecommerce-growth
+      - launch
+      - human-approval-gate
+      - publish-blocked-by-default

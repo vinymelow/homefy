@@ -1,0 +1,465 @@
+# ============================================
+# Workflow AIOX — ecommerce-growth / page-optimization
+#
+# Loop de otimização CRO: página existente + dados de performance →
+# audit-cro → hipóteses priorizadas → implementação → QA → relatório.
+#
+# GATE DE ENTRADA DO EXPERIMENTO: o experimento só inicia com hipótese
+# registrada (formato "Ao mudar X, espero Y porque Z") e métrica-alvo com
+# baseline. Sem isso o step de implementação permanece bloqueado.
+#
+# Execução: steps autónomos delegam ao Hermes via workflows/executors/hermes-exec.sh
+# (-t <slug> -f <prompt-file>) e gravam .aiox/external-runs/<run>/result.json
+# (status SUCCESS|PARTIAL|FAILED|TIMEOUT|REJECTED + usage em tokens).
+#
+# @version 1.0.0
+# ============================================
+
+workflow:
+  id: page-optimization
+  name: "Otimização de Página (CRO)"
+  version: "1.0.0"
+  type: optimization-loop
+  description: >-
+    Otimiza uma página existente com base em dados de performance
+    (CTR, CPC, conversão, CPA — blueprint secção 7). Fluxo: existing page +
+    performance data → audit-cro → hipóteses priorizadas → implementação
+    (build-landing-page/build-shopify-page) → QA → relatório de experimento.
+    Gate: o experimento só inicia com hipótese registrada e métrica-alvo
+    definida com baseline; a hipótese #1 validada é o único trabalho
+    implementado por iteração (uma variável de cada vez).
+  orchestrator: "@ecommerce-master"
+
+  # ============================================
+  # Triggers
+  # ============================================
+  triggers:
+    - type: manual
+      description: "Execução manual via workflow page-optimization"
+    - type: performance_data_ready
+      description: >-
+        Dados de campanha disponíveis (mín. 3 dias de teste ou spend
+        significativo) com CTR, CPC, conversão da página e CPA.
+    - type: cro_audit_requested
+      description: "Pedido de auditoria CRO pontual (sem implementação)"
+
+  # ============================================
+  # Inputs
+  # ============================================
+  inputs:
+    page_reference:
+      type: path
+      required: true
+      description: "Página existente (ficheiros Liquid/pasta da landing em research/landers/)"
+    performance_data:
+      type: object
+      required: true
+      description: >-
+        Métricas do período: ctr, cpc, page_conversion, cpa, spend, dias —
+        conforme blueprint secção 7 (mata <0,8% / testa 0,8–1,5% / escala >1,5%).
+    product_brief:
+      type: path
+      required: true
+      description: "Product Brief do produto (contexto compartilhado entre steps)"
+
+  # ============================================
+  # Configuration (alinhada com .aiox-core/core-config.yaml → modelGovernance)
+  # ============================================
+  config:
+    executor: "workflows/executors/hermes-exec.sh"
+    result_contract: ".aiox/external-runs/<run>/result.json"
+
+    # modelGovernance.timeouts.defaultMinutes = 20
+    timeouts:
+      step_default: "20m"
+      long_running: "60m"        # implementação de página
+      browser_automation: "10m"  # QA visual / validação de experimento
+
+    # modelGovernance.maxIterations.perTask = 15
+    max_iterations: 15
+
+    # 5 steps autónomos por iteração — checkpoint a cada ≤10 steps
+    checkpoint:
+      every_steps: 10            # requireCheckpointEvery: 10
+      max_consecutive_auto_steps: 30
+      require_human_decision: true
+      checkpoints_at: ["prioritize-hypotheses", "qa-page"]
+
+    # modelGovernance.failureHandling / fallback
+    retry_policy:
+      max_retries: 1             # retry 1x por step
+      fallback_model: "claude-haiku-4-5"  # fallback.order: [primary, cheap]
+      on_repeated_failure: "halt_and_escalate"
+
+    # Regra do experimento: 1 hipótese por iteração
+    experiment_rules:
+      one_hypothesis_per_iteration: true
+      min_test_duration_days: 3
+      publish_requires_human_approval: true
+
+  # ============================================
+  # Gate policy
+  # ============================================
+  gate_policy:
+    pass_when: "result.json status == SUCCESS"
+    partial: "PARTIAL → checkpoint de revisão humana obrigatório antes de avançar."
+    failed_timeout: >-
+      FAILED/TIMEOUT → retry 1x → fallback 1x com modelo barato →
+      persistindo, halt com escalate ao operador.
+    rejected: "REJECTED → halt imediato (pré-checks do executor falharam)."
+    experiment_entry_gate: >-
+      implementação bloqueada até hypotheses.md conter: hipótese no formato
+      "Ao mudar X, espero Y porque Z", métrica-alvo nomeada, valor baseline
+      e prazo mínimo de teste. Sem estes campos: halt.
+    usage_tracking: "usage (tokens) por run em result.json.usage para o budget counter"
+
+  # ============================================
+  # Steps
+  # ============================================
+  steps:
+    # ----------------------------------------
+    # Fase 1 — Diagnóstico
+    # ----------------------------------------
+    - id: audit-cro
+      name: "Auditoria CRO da página"
+      phase: 1_diagnostico
+      task: "tasks/audit-cro.md"
+      agent: "@cro-specialist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t audit-cro
+        -f squads/ecommerce-growth/tasks/audit-cro.md -d .
+      timeout: "20m"
+      inputs:
+        performance_data: ["ctr", "cpc", "page_conversion", "cpa", "spend", "dias"]
+        page_reference: "página existente (ficheiros da landing/tema)"
+        product_brief_sections:
+          - "3. Objeções principais (fricção vs objeções)"
+          - "6. Copy (clareza da oferta)"
+          - "7. Guardrails de claims"
+        checklists:
+          - "checklists/cro.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-cro-audit.md"
+        summary: >-
+          Diagnóstico por métrica: funil (CTR → landing → checkout), pontos
+          de fricção identificados no DOM, gaps de confiança, problemas de
+          velocidade com impacto em conversão.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    - id: prioritize-hypotheses
+      name: "Hipóteses priorizadas (gate de entrada do experimento)"
+      phase: 1_diagnostico
+      task: "tasks/audit-cro.md"
+      agent: "@cro-specialist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t prioritize-hypotheses
+        -f squads/ecommerce-growth/tasks/audit-cro.md -d .
+      timeout: "20m"
+      inputs:
+        performance_data: ["ctr", "cpc", "page_conversion", "cpa", "spend", "dias"]
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-cro-audit.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-hypotheses.md"
+        summary: >-
+          Lista priorizada por impacto/esforço. Cada hipótese OBRIGATORIAMENTE
+          no formato: "Ao mudar X, espero Y porque Z" + métrica-alvo nomeada +
+          valor baseline + prazo mínimo de 3 dias + critério de paragem.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: >-
+          status == 'SUCCESS' AND hypotheses.todas_tem_formato_registrado == true
+          AND hipotese_1.metrica_alvo != null AND hipotese_1.baseline != null
+        block_reason: >-
+          Experimento NÃO inicia sem hipótese registrada e métrica-alvo:
+          implementação permanece bloqueada até o cro-specialist corrigir.
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 2 — Implementação (1 hipótese por iteração)
+    # ----------------------------------------
+    - id: implement-change
+      name: "Implementação da hipótese #1"
+      phase: 2_implementacao
+      task: "tasks/build-landing-page.md"
+      agent: "@shopify-engineer"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t implement-change
+        -f squads/ecommerce-growth/tasks/build-landing-page.md -d . -T 60
+      timeout: "60m"
+      inputs:
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-hypotheses.md (só a hipótese #1)"
+          - "ecom-stack/research/landers/<slug>-cro-audit.md"
+        page_reference: "página existente — base da alteração"
+        product_brief_sections:
+          - "7. Guardrails de claims (inalteráveis na otimização)"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/ (página atualizada)"
+          - "diff das alterações aplicadas (1 variável apenas)"
+        summary: >-
+          Alteração cirúrgica da hipótese #1. Se a página for tema Shopify
+          completo, usa tasks/build-shopify-page.md em vez de build-landing-page.
+          Uma variável por iteração — múltiplas mudanças invalidam o teste.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS' AND diff.touches_single_variable == true"
+        fail_action: "reverter alterações multi-variável e repetir com escopo único"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+    # ----------------------------------------
+    # Fase 3 — QA (GATE)
+    # ----------------------------------------
+    - id: qa-page
+      name: "QA da página otimizada (gate obrigatório)"
+      phase: 3_qa
+      task: "tasks/audit-page.md"
+      agent: "@qa-specialist"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t qa-page
+        -f squads/ecommerce-growth/tasks/audit-page.md -d .
+      timeout: "20m"
+      inputs:
+        product_brief_sections:
+          - "7. Guardrails de claims (regrediram?)"
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-landing/ (atualizada)"
+          - "ecom-stack/research/landers/<slug>-hypotheses.md"
+        checklists:
+          - "checklists/copy.md"
+          - "checklists/ux.md"
+          - "checklists/shopify.md"
+          - "checklists/performance.md"
+          - "checklists/cro.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-qa-report.md"
+        summary: "Regression check: a alteração CRO não pode quebrar copy, UX, performance nem claims."
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS' AND qa_report.verdict == 'PASS'"
+        fail_action: "voltar a implement-change (máx. 2 iterações) → persistindo, halt e rollback"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+        qa_loop_max: 2
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador com qa-report anexado"
+
+    # ----------------------------------------
+    # Fase 4 — Relatório
+    # ----------------------------------------
+    - id: report-experiment
+      name: "Relatório do experimento"
+      phase: 4_relatorio
+      task: "tasks/audit-cro.md"
+      agent: "@ecommerce-master"
+      executor: "workflows/executors/hermes-exec.sh"
+      command: >-
+        workflows/executors/hermes-exec.sh -t report-experiment
+        -f squads/ecommerce-growth/tasks/audit-cro.md -d .
+      timeout: "20m"
+      inputs:
+        performance_data: ["baseline pré-alteração"]
+        upstream_artifacts:
+          - "ecom-stack/research/landers/<slug>-hypotheses.md"
+          - "ecom-stack/research/landers/<slug>-qa-report.md"
+      outputs:
+        artifacts:
+          - "ecom-stack/research/landers/<slug>-experiment-report.md"
+        summary: >-
+          Relatório final: hipótese executada, métrica-alvo vs baseline,
+          decisão (escala / mantém / reverte com rollback), próxima hipótese
+          da fila para a próxima iteração.
+      gate:
+        reads: ".aiox/external-runs/<run>/result.json"
+        pass_when: "status == 'SUCCESS'"
+        partial: "review_humana"
+        failed_timeout: "retry_1x → fallback → halt"
+      onFailure:
+        retry: 1
+        fallback: "reexecutar com claude-haiku-4-5 e prompt encurtado"
+        then: halt
+        escalate: "@ecommerce-master notifica operador"
+
+  # ============================================
+  # Canonical Execution Contract (sequence)
+  # ============================================
+  sequence:
+    - step: audit_cro
+      id: audit-cro
+      agent: "@cro-specialist"
+      task: "tasks/audit-cro.md"
+      action: "Auditar página contra dados de performance"
+      creates: cro_audit
+      next: prioritize-hypotheses
+      on_failure: retry_then_halt
+
+    - step: prioritize_hypotheses
+      id: prioritize-hypotheses
+      agent: "@cro-specialist"
+      task: "tasks/audit-cro.md"
+      action: "Priorizar hipóteses com métrica-alvo e baseline"
+      requires: cro_audit
+      creates: hypotheses
+      next: implement-change
+      on_failure: retry_then_halt
+
+    - step: implement_change
+      id: implement-change
+      agent: "@shopify-engineer"
+      task: "tasks/build-landing-page.md"
+      action: "Implementar hipótese #1 (uma variável)"
+      requires: hypotheses
+      creates: page_variant
+      condition: "hypotheses_registered_with_target_metric"
+      next: qa-page
+      on_failure: retry_then_halt
+
+    - step: qa_page
+      id: qa-page
+      agent: "@qa-specialist"
+      task: "tasks/audit-page.md"
+      action: "Regression QA sobre a página otimizada"
+      requires: page_variant
+      creates: qa_report
+      next: report-experiment
+      on_failure: retry_then_halt
+      on_fail_verdict: return_to_implement_change
+      max_iterations: 2
+
+    - step: report_experiment
+      id: report-experiment
+      agent: "@ecommerce-master"
+      task: "tasks/audit-cro.md"
+      action: "Consolidar relatório do experimento e decisão"
+      requires: qa_report
+      creates: experiment_report
+      next: workflow_end
+      on_failure: retry_then_halt
+
+  # ============================================
+  # Handoff prompts (transições de agente)
+  # ============================================
+  handoff_prompts:
+    cro_specialist_to_shopify_engineer: >-
+      Entrega: cro-audit + hypotheses.md com hipótese #1 registrada
+      (formato "Ao mudar X, espero Y porque Z", métrica-alvo, baseline).
+      Próximo passo: implementar APENAS a hipótese #1 — uma variável por
+      iteração; guardrails de claims são intocáveis.
+    shopify_engineer_to_qa_specialist: >-
+      Entrega: página atualizada com diff de variável única.
+      Próximo passo: regression check completo (copy/ux/shopify/performance/cro);
+      verdict PASS libera o relatório.
+    qa_specialist_to_ecommerce_master: >-
+      Entrega: qa-report PASS.
+      Próximo passo: consolidar experiment-report com decisão
+      escala/mantém/reverte e fila de hipóteses restantes.
+
+  # ============================================
+  # Error Handlers
+  # ============================================
+  error_handlers:
+    retry_then_halt:
+      description: "Retry 1x → fallback com modelo barato → halt com escalate"
+      actions:
+        - log: "Step falhou (FAILED/TIMEOUT)"
+        - retry: 1
+        - fallback_model: "claude-haiku-4-5"
+        - on_repeated_failure: halt_and_escalate
+        - escalate: "@ecommerce-master"
+    hypotheses_gate_block:
+      description: "Implementação bloqueada sem hipótese registrada + métrica-alvo"
+      actions:
+        - log: "Gate de entrada do experimento falhou"
+        - return_to: prioritize-hypotheses
+        - max_attempts: 2
+        - on_max_attempts: escalate_to_human
+    qa_reject:
+      description: "QA FAIL volta para implementação (máx. 2 iterações)"
+      actions:
+        - log: "QA FAIL na página otimizada"
+        - return_to: implement-change
+        - max_attempts: 2
+        - on_max_attempts: rollback_and_escalate
+    rollback_and_escalate:
+      description: "Duas falhas seguidas → rollback da variante e escalate"
+      actions:
+        - log: "Rollback da alteração CRO"
+        - restore: page_reference
+        - await_decision: true
+
+  # ============================================
+  # State
+  # ============================================
+  state:
+    persistence:
+      enabled: true
+      location: ".aiox/workflow-state/page-optimization/"
+      format: yaml
+    tracked_fields:
+      - current_step
+      - product_slug
+      - active_hypothesis
+      - attempt_count
+      - qa_iterations
+      - baseline_metrics
+      - started_at
+      - last_updated
+      - accumulated_usage_tokens
+
+  # ============================================
+  # Flow Diagram
+  # ============================================
+  flow_diagram: |
+    flowchart TD
+      A[Audit CRO com dados] --> B{Hipótese registrada + métrica-alvo}
+      B -->|NÃO| C[Halt — corrigir hipóteses]
+      B -->|SIM| D[Implementar hipótese 1]
+      D --> E{QA PASS}
+      E -->|SIM| F[Relatório escala mantém reverte]
+      E -->|NÃO máx 2x| D
+      E -->|persiste| G[Rollback + escalate humano]
+
+  # ============================================
+  # Metadata
+  # ============================================
+  metadata:
+    author: "Homefy — squad ecommerce-growth"
+    created_date: "2026-09-24"
+    version: "1.0.0"
+    tags:
+      - ecommerce-growth
+      - cro
+      - optimization-loop
+      - experiment-gate
