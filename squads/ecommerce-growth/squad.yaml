@@ -1,0 +1,71 @@
+# AIOX Squad Manifest — ecommerce-growth
+# Schema: .aiox-core/schemas/squad-schema.json
+name: ecommerce-growth
+version: 0.1.0
+short-title: Ecommerce Growth Squad
+description: >-
+  Operação de growth para e-commerce: pesquisa de produto e mercado,
+  estratégia de oferta, copywriting, landing pages, Shopify, criativos,
+  CRO, QA e lançamento de testes. Orquestração AIOX + execução Hermes.
+author: Homefy
+license: UNLICENSED
+
+slashPrefix: growth
+
+aiox:
+  minVersion: 5.4.1
+  type: squad
+
+requires:
+  node: ">=18.0.0"
+  aiox: ">=5.4.1"
+
+tags:
+  - ecommerce
+  - shopify
+  - dropshipping
+  - cro
+  - copywriting
+
+# Task-first: tasks são o ponto de entrada primário.
+components:
+  tasks:
+    - tasks/research-product.md
+    - tasks/research-market.md
+    - tasks/analyze-competitors.md
+    - tasks/create-offer.md
+    - tasks/create-copy.md
+    - tasks/create-page.md
+    - tasks/build-shopify-page.md
+    - tasks/generate-creatives.md
+    - tasks/audit-page.md
+    - tasks/launch-test.md
+  agents:
+    - agents/ecommerce-master.md
+    - agents/market-researcher.md
+    - agents/product-researcher.md
+    - agents/offer-strategist.md
+    - agents/copywriter.md
+    - agents/ux-designer.md
+    - agents/shopify-engineer.md
+    - agents/creative-director.md
+    - agents/cro-specialist.md
+    - agents/qa-specialist.md
+  workflows:
+    - workflows/product-to-page.yaml
+    - workflows/product-to-launch.yaml
+    - workflows/page-optimization.yaml
+  checklists:
+    - checklists/copy.md
+    - checklists/ux.md
+    - checklists/shopify.md
+    - checklists/performance.md
+    - checklists/cro.md
+  templates:
+    - templates/product-brief.md
+    - templates/research-report.md
+    - templates/offer-brief.md
+    - templates/landing-page-spec.md
+
+config:
+  extends: extend

@@ -44,3 +44,6 @@ logs/
 .aiox-core/local/
 .claude/settings.local.json
 .aiox/install-log.txt
+
+# AIOX external run artifacts
+.aiox/external-runs/
