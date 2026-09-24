@@ -11,24 +11,6 @@
 - **Custo do produto + envio**: €   | **Margem estimada**: %
 - **Prazo de entrega prometido**: (ex.: 6–9 dias úteis com rastreio)
 
-### 1b. Economia do teste (decidir ANTES de anunciar — método do tutor)
-- **AOV estimado**: €   (preço médio por encomenda, bundles incluídos)
-- **Margem por encomenda**: €  (AOV − produto − envio − taxas − refunds estimados)
-- **CPA máximo**: €  (margem − lucro mínimo aceitável; regra: margem × ~0,5)
-  Exemplo do tutor: AOV $69, margem $39 → CPA máx ~$20.
-- **Tracker de decisão**: usar números, não intuição — pass / pause / stop com os
-  limites do `anuncio plano` (CTR<1% mata, CPA>CPA máx mata, CPA<½ do máx escala).
-
-### 1c. Score de evidência (gate: ≥70/100 para avançar — método do tutor)
-| Dimensão | Nota 0–20 | Evidência (link + data) |
-|---|---|---|
-| Sinal de procura (queixas recorrentes, ads ativas 30+ dias) | | |
-| Gap de mercado (reviews más dos concorrentes = ângulo melhor) | | |
-| Fornecedor (custo, envio 5–15 dias, refunds) | | |
-| Compliance (sem claims proibidos, sem marcas registadas) | | |
-| Prova criativa (produto "mostra" o benefício em 2s, UGC possível) | | |
-| **TOTAL** | **/100** | <70 = descartar sem mais tempo |
-
 ## 2. Classificação do produto (método EcomAlchemist — decide a sequência de criativos)
 - [ ] **High-consideration** (saúde/beleza com claims, preço alto, comprador cético)
       → galeria PDP completa: 9–11 frames (hero → recognition → pivot → mechanism →
