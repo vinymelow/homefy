@@ -4,7 +4,7 @@
 #   AIOX mantém a orquestração; Hermes executa; artefatos ficam em .aiox/external-runs/
 #
 # Uso:
-#   hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [-T timeout] [--toolsets list]
+#   hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [-T timeout] [--toolsets list] [--reasoning level]
 #   hermes-exec.sh -t <slug> -p "prompt inline" [-d workdir]
 #
 # Toolsets: default conservador "terminal,file" (Fase 36 — small
@@ -28,7 +28,7 @@
 #   prompt.md command.txt output.md hermes.log usage.json result.json metadata.json
 set -euo pipefail
 
-SLUG=""; PROMPT=""; PROMPT_FILE=""; WORKDIR=""; MODEL=""; TIMEOUT_MIN=""; TOOLSETS=""
+SLUG=""; PROMPT=""; PROMPT_FILE=""; WORKDIR=""; MODEL=""; PROVIDER=""; REASONING=""; TIMEOUT_MIN=""; TOOLSETS=""
 RUN_BASE=".aiox/external-runs"
 DEFAULT_TIMEOUT_MIN=20
 DEFAULT_TOOLSETS="terminal,file"
@@ -40,6 +40,8 @@ while [[ $# -gt 0 ]]; do
     -p|--prompt) PROMPT="$2"; shift 2 ;;
     -d|--workdir) WORKDIR="$2"; shift 2 ;;
     -m|--model) MODEL="$2"; shift 2 ;;
+    --provider) PROVIDER="$2"; shift 2 ;;
+    --reasoning) REASONING="$2"; shift 2 ;;
     -T|--timeout) TIMEOUT_MIN="$2"; shift 2 ;;
     -u|--toolsets) TOOLSETS="$2"; shift 2 ;;
     -r|--run-dir) RUN_BASE="$2"; shift 2 ;;
@@ -64,6 +66,12 @@ if [[ ! "$TIMEOUT_MIN" =~ ^[1-9][0-9]*$ ]] || (( TIMEOUT_MIN > 1440 )); then
 fi
 if [[ ! "$TOOLSETS" =~ ^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$ ]]; then
   echo "STATUS=rejected"; echo "REASON=invalid-toolsets"; exit 65
+fi
+if [[ -n "$REASONING" && ! "$REASONING" =~ ^(none|minimal|low|medium|high|xhigh|max|ultra)$ ]]; then
+  echo "STATUS=rejected"; echo "REASON=invalid-reasoning-level"; exit 65
+fi
+if [[ -n "$PROVIDER" && ! "$PROVIDER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "STATUS=rejected"; echo "REASON=invalid-provider"; exit 65
 fi
 
 if [[ "$RUN_BASE" != /* ]]; then
@@ -163,8 +171,8 @@ fi
 # O usuário 'hermes' não lê /root/* (home 700) — nesse caso use a do root.
 HERMES=()
 HERMES_RUN_USER=""
-if [[ -x "/home/hermes/.local/bin/hermes" ]] && sudo -u hermes test -r "$WORKDIR" 2>/dev/null; then
-  HERMES=(sudo -u hermes /home/hermes/.local/bin/hermes)
+if [[ -x "/home/hermes/.local/bin/hermes" ]] && runuser -u hermes -- test -r "$WORKDIR" 2>/dev/null; then
+  HERMES=(runuser -u hermes -- /home/hermes/.local/bin/hermes)
   HERMES_RUN_USER="hermes"
 elif [[ -x "/root/.local/bin/hermes" ]]; then
   HERMES=(/root/.local/bin/hermes)
@@ -193,9 +201,13 @@ fi
 
 ARGS=(-z "$(cat "$RUN_DIR/prompt.md")" --in "$WORKDIR" --usage-file "$RUN_DIR/usage.json" -t "$TOOLSETS")
 [[ -n "$MODEL" ]] && ARGS+=(-m "$MODEL")
+[[ -n "$PROVIDER" ]] && ARGS+=(--provider "$PROVIDER")
+[[ -n "$REASONING" ]] && ARGS+=(--reasoning "$REASONING")
 printf '%q ' "${HERMES[@]}" -z "<prompt-from:$RUN_DIR/prompt.md>" --in "$WORKDIR" \
   --usage-file "$RUN_DIR/usage.json" -t "$TOOLSETS" > "$RUN_DIR/command.txt"
 [[ -n "$MODEL" ]] && printf '%q ' -m "$MODEL" >> "$RUN_DIR/command.txt"
+[[ -n "$PROVIDER" ]] && printf '%q ' --provider "$PROVIDER" >> "$RUN_DIR/command.txt"
+[[ -n "$REASONING" ]] && printf '%q ' --reasoning "$REASONING" >> "$RUN_DIR/command.txt"
 printf '\n' >> "$RUN_DIR/command.txt"
 
 echo "STATUS=started"
@@ -205,7 +217,7 @@ echo "COMMAND=$(cat "$RUN_DIR/command.txt")"
 
 # Execução com timeout --------------------------------------------------------
 set +e
-timeout --signal=TERM "${TIMEOUT_MIN}m" "${HERMES[@]}" "${ARGS[@]}" \
+(cd "$WORKDIR" && timeout --signal=TERM "${TIMEOUT_MIN}m" "${HERMES[@]}" "${ARGS[@]}") \
   > "$RUN_DIR/output.md" 2> "$RUN_DIR/hermes.log"
 EXIT_CODE=$?
 set -e
