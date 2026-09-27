@@ -10,6 +10,7 @@ ASSET_DIR = Path(os.environ.get("HOMEFY_ASSET_DIR", ECOM_ROOT / "assets"))
 DB_PATH = STATE_DIR / "painel.db"
 RUNS_DIR = STATE_DIR / "runs"
 BOOTSTRAP_FILE = STATE_DIR / "bootstrap-token"
+SETUP_IP_FILE = STATE_DIR / "setup-allowed-ip.json"
 
 PUBLIC_ORIGIN = os.environ.get("HOMEFY_PUBLIC_ORIGIN", "http://127.0.0.1:8787").rstrip("/")
 COOKIE_SECURE = os.environ.get("HOMEFY_COOKIE_SECURE", "0") == "1"

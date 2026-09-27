@@ -74,14 +74,31 @@ def valid_bootstrap(token: str) -> bool:
         return False
     return bool(token) and security.token_hash(token) == security.token_hash(expected)
 
+def allow_setup_ip(ip: str, ttl=600):
+    """Abre uma janela curta para o IP observado pelo proxy confiável."""
+    settings.SETUP_IP_FILE.write_text(json.dumps({"ip": ip, "expires_at": time.time() + ttl}), encoding="utf-8")
+    os.chmod(settings.SETUP_IP_FILE, 0o600)
 
-def create_admin(email: str, password: str, token: str):
-    if has_admin() or not valid_bootstrap(token):
+def setup_ip_allowed(ip: str) -> bool:
+    try:
+        data = json.loads(settings.SETUP_IP_FILE.read_text(encoding="utf-8"))
+        return bool(ip) and data.get("ip") == ip and float(data.get("expires_at", 0)) > time.time()
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+def create_admin(email: str, password: str, token: str, client_ip: str = ""):
+    if has_admin() or not (valid_bootstrap(token) or setup_ip_allowed(client_ip)):
         raise ValueError("Inicialização indisponível ou token inválido")
     secret = security.new_totp_secret()
     with conn() as c:
         c.execute("INSERT INTO admins(id,email,password_hash,totp_secret,created_at) VALUES(1,?,?,?,?)",
                   (email.lower().strip(), security.hash_password(password), secret, time.time()))
+    for path in (settings.BOOTSTRAP_FILE, settings.SETUP_IP_FILE):
+        try:
+            path.unlink()
+        except OSError:
+            pass
     audit("admin.created", "bootstrap", {"email": email.lower().strip()})
     return secret
 

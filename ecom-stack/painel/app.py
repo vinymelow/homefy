@@ -106,13 +106,15 @@ def health(): return {"status":"ok","service":"homefy-web"}
 @app.get("/setup", response_class=HTMLResponse)
 def setup_form(request: Request, token: str = ""):
     if control.has_admin(): return RedirectResponse("/login", status_code=303)
-    return templates.TemplateResponse(request, "setup.html", ctx(request, token=token, error=""))
+    client=request.client.host if request.client else ""
+    return templates.TemplateResponse(request, "setup.html", ctx(request, token=token, error="", ip_allowed=control.setup_ip_allowed(client)))
 
 @app.post("/setup", response_class=HTMLResponse)
-def setup_create(request: Request, email: str=Form(...), password: str=Form(...), token: str=Form(...)):
-    try: control.create_admin(email, password, token)
+def setup_create(request: Request, email: str=Form(...), password: str=Form(...), token: str=Form("")):
+    client=request.client.host if request.client else ""
+    try: control.create_admin(email, password, token, client)
     except ValueError as exc:
-        return templates.TemplateResponse(request,"setup.html",ctx(request,token=token,error=str(exc)),status_code=400)
+        return templates.TemplateResponse(request,"setup.html",ctx(request,token=token,error=str(exc),ip_allowed=control.setup_ip_allowed(client)),status_code=400)
     session_token,_=control.create_session(); response=RedirectResponse("/setup/totp",status_code=303)
     response.set_cookie("homefy_session",session_token,max_age=settings.SESSION_TTL,httponly=True,secure=settings.COOKIE_SECURE,samesite="strict")
     return response
