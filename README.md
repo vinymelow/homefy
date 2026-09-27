@@ -10,6 +10,20 @@ da operação: governança de modelos e custos, contratos de entrada entre agent
 execução auditável com artefatos por run e uma regra crítica de publicação com
 aprovação humana.
 
+## Cockpit operacional
+
+O frontend privado em `app.homefyshop.online` concentra produtos, chat com
+Hermes, workflows AIOX, jobs, ativos, aprovações e auditoria. O processo web
+somente registra intenções na fila; `homefy-worker.service` é o componente que
+executa o Hermes. Gastos e ações externas exigem aprovação explícita.
+
+```bash
+systemctl status homefy-web homefy-worker
+curl http://127.0.0.1:8787/health
+```
+
+Deploy, DNS e onboarding: `deploy/homefy/README.md`.
+
 ## Arquitetura
 
 ```

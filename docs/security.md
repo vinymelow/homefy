@@ -4,6 +4,16 @@ Regras explícitas de segurança do Homefy. Complementam as 5 regras críticas d
 `AGENTS.md` (das quais a nº 1 — nunca commitar segredos — é a mais relevante
 aqui).
 
+## Cockpit remoto
+
+- Conta administrativa única, senha com `scrypt` e TOTP obrigatório.
+- Sessões opacas, expiração e cookies `Secure`, `HttpOnly`, `SameSite=Strict`.
+- Proteção de origem, CSP, HSTS, frame deny e headers defensivos.
+- Bootstrap de uso único em `/var/lib/homefy/bootstrap-token` (modo `0600`).
+- Segredos operacionais em `/etc/homefy/` (modo `0600`), nunca no Git.
+- Web e worker separados; somente o worker chama o Hermes.
+- Ações pagas entram na fila somente depois de aprovação persistida.
+
 ## 1. Segredos
 
 - **Onde ficam.** O `.env` real fica em `ecom-stack/config/.env` (gitignored) e

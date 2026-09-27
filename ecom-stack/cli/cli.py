@@ -24,7 +24,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BRIEF_TEMPLATE = os.path.join(ROOT, "templates", "product-brief.md")
 LANDERS_DIR = os.path.join(ROOT, "research", "landers")
 CREATIVES_DIR = os.path.join(ROOT, "assets", "creatives")
-ENV_FILE = os.environ.get("ECOM_ENV_FILE", os.path.join(ROOT, "config", ".env"))
+_LOCAL_ENV = os.path.join(ROOT, "config", ".env")
+_DEPLOY_ENV = "/etc/homefy/integrations.env"
+ENV_FILE = os.environ.get("ECOM_ENV_FILE", _LOCAL_ENV if os.path.exists(_LOCAL_ENV) else _DEPLOY_ENV)
 
 def load_env():
     env = {}

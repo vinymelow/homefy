@@ -1,39 +1,7 @@
-{% extends "base.html" %}
-{% block titulo %}Dashboard · ecom-stack{% endblock %}
-{% block conteudo %}
-<h1>Dashboard</h1>
-<p class="nota">Próximo passo: {{ passo }}</p>
-
-<section>
-  <h2>Produtos ({{ briefs|length }})</h2>
-  {% if briefs %}
-  <ul class="lista">
-    {% for b in briefs %}<li><a href="/p/{{ b }}">{{ b }}</a></li>{% endfor %}
-  </ul>
-  {% else %}<p>Nenhum produto ainda.</p>{% endif %}
-  <p><a class="botao" href="/novo">+ Novo Produto</a></p>
-</section>
-
-<section>
-  <h2>Trabalhos recentes</h2>
-  {% if jobs %}
-  <table>
-    <tr><th>#</th><th>Produto</th><th>Etapa</th><th>Estado</th><th></th></tr>
-    {% for j in jobs %}
-    <tr>
-      <td>{{ j["id"] }}</td>
-      <td><a href="/p/{{ j['produto'] }}">{{ j["produto"] }}</a></td>
-      <td>{{ j["tipo"] }}</td>
-      <td><span class="estado {{ j['estado'] }}">{{ j["estado"] }}</span></td>
-      <td><a href="/trabalho/{{ j['id'] }}">log</a></td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% else %}<p>Sem trabalhos ainda.</p>{% endif %}
-</section>
-
-<section>
-  <h2>Criativos gerados</h2>
-  <p>{{ n_ativos }} ficheiro(s) em <code>assets/</code> — <a href="/ativos">ver ativos</a></p>
-</section>
-{% endblock %}
+{% extends "base.html" %}{% block titulo %}Cockpit · Homefy{% endblock %}{% block conteudo %}
+<div class="cabecalho-pagina"><div><p class="eyebrow">OPERAÇÃO</p><h1>Bom dia. Este é o seu cockpit.</h1></div><a class="botao" href="/chat">Conversar com Hermes</a></div>
+<div class="cards resumo"><div class="card"><span>Produtos</span><strong>{{ briefs|length }}</strong><small>{{ passo }}</small></div><div class="card"><span>Fila ativa</span><strong>{{ active_jobs }}</strong><small>execuções sob controle</small></div><div class="card"><span>Aprovações</span><strong>{{ approvals|length }}</strong><small>nenhuma publicação automática</small></div><div class="card"><span>Ativos</span><strong>{{ n_ativos }}</strong><small>arquivos operacionais</small></div></div>
+<section><div class="secao-titulo"><h2>Produtos</h2><a href="/novo">+ Novo produto</a></div>{% if briefs %}<ul class="lista">{% for b in briefs %}<li><a href="/p/{{ b }}">{{ b }}</a></li>{% endfor %}</ul>{% else %}<p>Nenhum produto ainda.</p>{% endif %}</section>
+<section><h2>Atividade recente</h2>{% if jobs %}<table><tr><th>#</th><th>Produto</th><th>Etapa</th><th>Estado</th><th></th></tr>{% for j in jobs %}<tr><td>{{ j['id'] }}</td><td><a href="/p/{{ j['produto'] }}">{{ j['produto'] }}</a></td><td>{{ j['tipo'] }}</td><td><span class="estado {{ j['estado'] }}">{{ j['estado'] }}</span></td><td><a href="/trabalho/{{ j['id'] }}">detalhes</a></td></tr>{% endfor %}</table>{% else %}<p>Sem trabalhos ainda.</p>{% endif %}</section>
+<section><h2>Biblioteca de ativos</h2><p>{{ n_ativos }} arquivo(s) — <a href="/ativos">ver ativos</a></p></section>{% endblock %}
+{% block scripts %}<script>const stream=new EventSource('/api/events');stream.onmessage=()=>{if(!window.homefyRefresh)window.homefyRefresh=setTimeout(()=>location.reload(),1500)}</script>{% endblock %}

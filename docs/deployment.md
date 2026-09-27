@@ -1,6 +1,12 @@
 # Deployment e ambientes
 
-## Estado atual: NENHUM deploy automático
+## Estado atual: cockpit implantado, publicação comercial bloqueada
+
+O cockpit roda em `127.0.0.1:8787` por `homefy-web.service` e é publicado pelo
+Traefik somente no host `app.homefyshop.online`. O worker Hermes roda em
+`homefy-worker.service`. O HTTPS fica disponível quando o registro DNS
+`A app 179.198.193.119` propagar. Shopify, Meta e TikTok continuam sob gate de
+aprovação humana e sem publish automático.
 
 O Homefy **não tem deploy automático**. Nenhum pipeline publica código ou
 conteúdo sozinho — nem no repositório, nem em Shopify, Meta ou TikTok. O que
@@ -14,10 +20,9 @@ existe:
   commitar segredos; nunca rodar `npx aiox-core install --force` sem avaliar
   conflitos.
 
-## Painel local (acesso via túnel SSH)
+## Painel local (fallback administrativo)
 
-O painel web do projeto roda apenas em localhost na VPS — por design. Para
-abri-lo remotamente, use um túnel SSH:
+O backend continua em localhost. Em caso de falha do DNS/Traefik, use:
 
 ```bash
 # Na sua máquina local:

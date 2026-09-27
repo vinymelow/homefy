@@ -3,7 +3,13 @@
 Interface que concentra o projeto: registas o produto (único trabalho manual),
 disparas as etapas do pipeline e acompanhas tudo num só sítio.
 
-## Arrancar
+## Produção
+
+O painel é o cockpit do Homefy e roda nos serviços `homefy-web` (interface
+autenticada) e `homefy-worker` (execução Hermes). O acesso normal é
+`https://app.homefyshop.online`; os comandos abaixo servem para desenvolvimento.
+
+## Arrancar em desenvolvimento
 
 ```bash
 python3 cli/cli.py painel            # http://127.0.0.1:8787 (só localhost)
@@ -17,7 +23,7 @@ ssh -L 8787:localhost:8787 root@IP_DA_VPS
 # → http://localhost:8787
 ```
 
-## O que faz (Fase 1 — MVP)
+## O que faz
 
 | Rota | Função |
 |---|---|
@@ -29,7 +35,7 @@ ssh -L 8787:localhost:8787 root@IP_DA_VPS
 
 ### Etapas do pipeline
 
-- **Gerar página de vendas** — job-agente: corre `kimi -p` headless no repo, seguindo
+- **Gerar página de vendas** — job-agente: corre o executor Hermes no repo, seguindo
   `prompts/pagina-vendas.md` + o brief. Resultado em `templates/<slug>.html`. Sem custo extra de API.
 - **Gerar vídeo 9:16 (Higgsfield)** — job-API direta: Seedance 2.0 (~$0.10/s).
   Requer `HF_API_KEY_ID` + `HF_API_KEY_SECRET` no `config/.env`; sem chaves, falha

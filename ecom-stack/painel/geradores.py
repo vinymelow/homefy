@@ -7,13 +7,14 @@ import json
 import os
 import time
 import urllib.request
+from . import settings
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API = "https://api.higgsfield.ai"
 
 def _env():
     env = {}
-    path = os.path.join(ROOT, "config", ".env")
+    path = str(settings.ECOM_ENV_FILE)
     if os.path.exists(path):
         for line in open(path):
             if "=" in line and not line.strip().startswith("#"):
@@ -50,7 +51,7 @@ def higgsfield_video(meta, logf, duracao=5):
     if not jid:
         raise RuntimeError(f"API não devolveu id de job: {_resumo(job)}")
 
-    destino = os.path.join(ROOT, "assets", "creatives", slug)
+    destino = os.path.join(str(settings.ASSET_DIR), "creatives", slug)
     os.makedirs(destino, exist_ok=True)
     caminho = os.path.join(destino, f"ugc-video-{int(time.time())}.mp4")
 

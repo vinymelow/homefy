@@ -9,10 +9,11 @@ import os
 import sqlite3
 import threading
 import time
+from . import settings
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB = os.path.join(ROOT, "dados", "painel.db")
-LOGS = os.path.join(ROOT, "logs", "trabalhos")
+DB = str(settings.DB_PATH)
+LOGS = str(settings.LOG_DIR / "trabalhos")
 ESTADOS = ("fila", "rodando", "concluido", "erro")
 
 _worker = None
@@ -33,10 +34,15 @@ def init():
             criado REAL, atualizado REAL, log_path TEXT, meta TEXT DEFAULT '{}')""")
         # recuperação de jobs interrompidos por queda do servidor
         c.execute("UPDATE jobs SET estado='fila', atualizado=? WHERE estado='rodando'", (time.time(),))
+        columns={row[1] for row in c.execute("PRAGMA table_info(jobs)")}
+        for name,sql_type in (("status_code","TEXT"),("run_dir","TEXT"),("cost_usd","REAL DEFAULT 0")):
+            if name not in columns: c.execute(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
 
 def criar_job(produto, tipo, meta=None):
     agora = time.time()
     with _conn() as c:
+        if c.execute("SELECT COUNT(*) FROM jobs WHERE criado>?",(agora-86400,)).fetchone()[0]>=settings.MAX_DAILY_RUNS:
+            raise RuntimeError("Limite diário de execuções atingido")
         cur = c.execute(
             "INSERT INTO jobs(produto,tipo,estado,criado,atualizado,log_path,meta) VALUES(?,?,?,?,?,?,?)",
             (produto, tipo, "fila", agora, agora, "", json.dumps(meta or {}, ensure_ascii=False)))
@@ -74,14 +80,21 @@ def _executar(job):
         logf.write(f"== job {job['id']} | {job['tipo']} | produto={job['produto']} | {time.strftime('%H:%M:%S')} ==\n")
         logf.flush()
         try:
-            etapas.executar(job["tipo"], meta, logf)
+            result=etapas.executar(job["tipo"],meta,logf) or {}; meta.update(result)
             meta.pop("erro", None)
-            _marcar(job["id"], "concluido", meta)
+            status=str(result.get("status","SUCCESS")).upper(); estado="concluido" if status in ("SUCCESS","PARTIAL") else "erro"; _marcar(job["id"],estado,meta)
+            with _conn() as c: c.execute("UPDATE jobs SET status_code=?,run_dir=?,cost_usd=? WHERE id=?",(status,result.get("run_dir"),float(result.get("cost_usd") or 0),job["id"]))
+            if job["tipo"]=="chat" and meta.get("chat_id"):
+                from . import control
+                control.add_message(int(meta["chat_id"]),"assistant",result.get("output") or "A execução terminou sem resposta.",job["id"])
             logf.write("\n== CONCLUIDO ==\n")
         except Exception as e:
             meta["erro"] = str(e)[:500]
             _marcar(job["id"], "erro", meta)
             logf.write(f"\n== ERRO: {e} ==\n")
+            if job["tipo"]=="chat" and meta.get("chat_id"):
+                from . import control
+                control.add_message(int(meta["chat_id"]),"system","Falha ao consultar o Hermes. Consulte o trabalho para detalhes.",job["id"])
 
 def _loop():
     while True:
@@ -103,6 +116,9 @@ def arrancar_worker():
             init()
             _worker = threading.Thread(target=_loop, daemon=True, name="painel-worker")
             _worker.start()
+
+def worker_forever():
+    init(); _loop()
 
 def ler_log(jid, linhas=200):
     job = obter_job(jid)
