@@ -181,6 +181,19 @@ def approvals(status="pending"):
     with conn() as c:
         return c.execute("SELECT * FROM approvals WHERE status=? ORDER BY id DESC", (status,)).fetchall()
 
+def create_approval(action: str, target: str, impact: str, cost_estimate: str | None, payload: dict, ttl=3600):
+    now = time.time()
+    with conn() as c:
+        cur = c.execute("INSERT INTO approvals(action,target,impact,cost_estimate,payload,created_at,expires_at) VALUES(?,?,?,?,?,?,?)",
+                        (action, target, impact, cost_estimate, json.dumps(payload, ensure_ascii=False), now, now + ttl))
+        aid = cur.lastrowid
+    audit("approval.created", "admin", {"id": aid, "action": action, "target": target})
+    return aid
+
+def get_approval(aid: int):
+    with conn() as c:
+        return c.execute("SELECT * FROM approvals WHERE id=?", (aid,)).fetchone()
+
 
 def decide_approval(aid: int, decision: str, note: str):
     if decision not in ("approved", "rejected"):
@@ -193,4 +206,3 @@ def decide_approval(aid: int, decision: str, note: str):
                   (decision, time.time(), note[:500], aid))
     audit("approval.decided", "admin", {"id": aid, "decision": decision})
     return True
-

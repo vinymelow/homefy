@@ -1,0 +1,9 @@
+<!DOCTYPE html><html lang="pt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Configurar · Homefy</title><link rel="stylesheet" href="/static/style.css"></head>
+<body class="auth"><main class="auth-card"><p class="eyebrow">CONFIGURAÇÃO INICIAL</p><h1>Crie seu acesso</h1>
+<p class="muted">Esta etapa funciona uma única vez. Use o token guardado na VPS.</p>
+{% if error %}<p class="erro">{{ error }}</p>{% endif %}
+<form method="post" action="/setup" class="stack"><label>Token de inicialização<input name="token" value="{{ token }}" required></label>
+<label>E-mail administrativo<input type="email" name="email" required></label>
+<label>Senha forte (mínimo 12 caracteres)<input type="password" name="password" minlength="12" required></label>
+<button class="botao grande" type="submit">Criar conta</button></form></main></body></html>

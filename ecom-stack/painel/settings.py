@@ -19,7 +19,7 @@ HERMES_PROVIDER = os.environ.get("HOMEFY_HERMES_PROVIDER", "")
 HERMES_REASONING = os.environ.get("HOMEFY_HERMES_REASONING", "low")
 HERMES_TIMEOUT_MIN = int(os.environ.get("HOMEFY_HERMES_TIMEOUT_MIN", "20"))
 MAX_DAILY_RUNS = int(os.environ.get("HOMEFY_MAX_DAILY_RUNS", "30"))
+ECOM_ENV_FILE = Path(os.environ.get("ECOM_ENV_FILE", ECOM_ROOT / "config" / ".env"))
 
 for directory in (STATE_DIR, LOG_DIR, ASSET_DIR, RUNS_DIR):
     directory.mkdir(parents=True, exist_ok=True)
-

@@ -1,0 +1,2 @@
+{% extends "base.html" %}{% block titulo %}Auditoria · Homefy{% endblock %}{% block conteudo %}
+<p class="eyebrow">RASTREABILIDADE</p><h1>Auditoria</h1><table><tr><th>Quando</th><th>Evento</th><th>Ator</th><th>Detalhe sanitizado</th></tr>{% for e in events %}<tr><td>{{ e['created_at']|int }}</td><td><code>{{ e['kind'] }}</code></td><td>{{ e['actor'] }}</td><td class="mono wrap">{{ e['detail'] }}</td></tr>{% endfor %}</table>{% endblock %}

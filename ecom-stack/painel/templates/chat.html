@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% block titulo %}Chat · Homefy{% endblock %}{% block conteudo %}
+<div class="cabecalho-pagina"><div><p class="eyebrow">HERMES</p><h1>Assistente operacional</h1></div></div>
+<div class="chat-layout"><aside class="chat-sidebar"><form method="post" action="/chat/new" class="stack compact">
+<input name="title" placeholder="Nome da conversa" required><select name="product"><option value="">Contexto geral</option>{% for p in briefs %}<option>{{ p }}</option>{% endfor %}</select><button class="botao" type="submit">Nova conversa</button></form>
+<ul class="lista">{% for r in rooms %}<li><a href="/chat?id={{ r['id'] }}">{{ r['title'] }}{% if r['product'] %}<small>{{ r['product'] }}</small>{% endif %}</a></li>{% endfor %}</ul></aside>
+<section class="chat-main">{% if room %}<div class="chat-head"><h2>{{ room['title'] }}</h2><span>{{ room['product'] or 'Homefy geral' }}</span></div>
+<div class="mensagens">{% for m in messages %}<article class="mensagem {{ m['role'] }}"><small>{{ m['role'] }}</small><div>{{ m['content'] }}</div>{% if m['job_id'] %}<a href="/trabalho/{{ m['job_id'] }}">execução #{{ m['job_id'] }}</a>{% endif %}</article>{% else %}<p class="empty">Comece descrevendo o resultado que deseja.</p>{% endfor %}</div>
+<form method="post" action="/chat/{{ room['id'] }}/message" class="composer"><textarea name="message" placeholder="Peça uma análise, pesquisa ou próximo passo…" required></textarea><button class="botao" type="submit">Enviar</button></form>
+{% else %}<div class="empty-state"><h2>Uma conversa com contexto</h2><p>Crie uma conversa geral ou vinculada a um produto. Ações externas continuam protegidas por aprovação.</p></div>{% endif %}</section></div>
+{% endblock %}{% block scripts %}{% if room %}<script>const s=new EventSource('/api/events');s.onmessage=()=>{const pending=document.querySelector('.mensagem.user:last-of-type');if(pending)setTimeout(()=>location.reload(),1500)}</script>{% endif %}{% endblock %}

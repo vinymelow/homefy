@@ -1,0 +1,24 @@
+[Unit]
+Description=Homefy Hermes Job Worker
+After=network-online.target homefy-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/homefy/ecom-stack
+Environment=PYTHONPATH=/root/homefy/ecom-stack
+EnvironmentFile=/etc/homefy/homefy.env
+ExecStart=/root/homefy/ecom-stack/painel/.venv/bin/python -m painel.worker
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

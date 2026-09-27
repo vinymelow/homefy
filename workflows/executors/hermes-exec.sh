@@ -176,6 +176,13 @@ if [[ -x "/home/hermes/.local/bin/hermes" ]] && runuser -u hermes -- test -r "$W
   HERMES_RUN_USER="hermes"
 elif [[ -x "/root/.local/bin/hermes" ]]; then
   HERMES=(/root/.local/bin/hermes)
+  # A credencial OpenAI pertence ao runtime dedicado e não é copiada para o
+  # repositório ou para a conta root. O worker pode herdá-la em memória quando
+  # o provider explicitamente solicitado for openai-api.
+  if [[ "$PROVIDER" == "openai-api" && -z "${OPENAI_API_KEY:-}" && -r /home/hermes/.hermes/.env ]]; then
+    OPENAI_API_KEY="$(sed -n 's/^OPENAI_API_KEY=//p' /home/hermes/.hermes/.env | head -1)"
+    [[ -n "$OPENAI_API_KEY" ]] && export OPENAI_API_KEY
+  fi
 elif [[ -x "$HOME/.local/bin/hermes" ]]; then
   HERMES=("$HOME/.local/bin/hermes")
 else

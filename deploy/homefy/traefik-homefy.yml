@@ -1,0 +1,22 @@
+http:
+  routers:
+    homefy:
+      rule: Host(`app.homefyshop.online`)
+      entryPoints: [websecure]
+      service: homefy
+      tls:
+        certResolver: letsencrypt
+      middlewares: [homefy-security]
+  services:
+    homefy:
+      loadBalancer:
+        servers:
+          - url: http://127.0.0.1:8787
+  middlewares:
+    homefy-security:
+      headers:
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: same-origin
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true

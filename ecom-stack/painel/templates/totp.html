@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block titulo %}Autenticador · Homefy{% endblock %}{% block conteudo %}
+<div class="narrow"><p class="eyebrow">SEGUNDO FATOR</p><h1>Proteja sua conta</h1>
+{% if recovery_codes %}<div class="sucesso"><h2>Configuração concluída</h2><p>Guarde estes códigos uma única vez:</p><pre>{{ recovery_codes|join('\n') }}</pre><p><a class="botao" href="/">Entrar no cockpit</a></p></div>
+{% else %}<p>Adicione manualmente a chave abaixo no Google Authenticator, 1Password ou aplicativo compatível.</p>
+<div class="secret"><code>{{ secret }}</code></div><details><summary>URI avançada</summary><code class="wrap">{{ uri }}</code></details>
+{% if error %}<p class="erro">{{ error }}</p>{% endif %}<form method="post" class="stack"><label>Código de 6 dígitos<input name="code" inputmode="numeric" pattern="[0-9]{6}" required></label><button class="botao" type="submit">Confirmar autenticador</button></form>{% endif %}</div>
+{% endblock %}
