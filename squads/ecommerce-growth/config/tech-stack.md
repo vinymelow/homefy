@@ -51,8 +51,8 @@
 
 ## 5. Ponte AIOX → Hermes
 - `workflows/executors/hermes-exec.sh` (External Executor pattern):
-  `bash workflows/executors/hermes-exec.sh -t <slug> -f <prompt.md> [-d workdir] [-m model] [-T timeout]`
-- Artefactos por run em `.aiox/external-runs/<timestamp>-<slug>/`
+  `bash workflows/executors/hermes-exec.sh -t <slug> -f <prompt.md> [-d workdir] [-m model] [--provider provider] [--reasoning level] [-T timeout]`
+- Artefactos por run em `.aiox/external-runs/<timestamp>-<pid>-<slug>/`
   (gitignored): `prompt.md command.txt output.md hermes.log usage.json
   result.json metadata.json`.
 - Contrato de status: SUCCESS / PARTIAL / FAILED / TIMEOUT / REJECTED

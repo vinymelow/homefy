@@ -24,7 +24,7 @@ workflows/executors/hermes-exec.sh \
   -T 20
 ```
 
-- O executor grava artefatos do run em `.aiox/external-runs/<timestamp>-<slug>/` (`prompt.md output.md hermes.log usage.json result.json metadata.json` + `artifacts/`).
+- O executor grava artefatos do run em `.aiox/external-runs/<timestamp>-<pid>-<slug>/` (`prompt.md output.md hermes.log usage.json result.json metadata.json` + `artifacts/`).
 - **O artefato entregue (HTML+CSS+JS) vai para `.aiox/external-runs/<run>/artifacts/`** — nome `<slug>-landing.html`. Se o hermes escrever o ficheiro no workdir, o orquestrador/operador move-o para `artifacts/`; o run dir é a fonte de verdade do que foi produzido.
 - Verificar o resultado no fim do run:
 

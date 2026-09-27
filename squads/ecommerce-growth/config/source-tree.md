@@ -18,7 +18,7 @@ homefy/
 │   └── core-config.yaml         #   config do projeto (modelGovernance, ide, ...)
 ├── .aiox/
 │   └── external-runs/           # Artefatos de execução Hermes (GITIGNORED)
-│                                #   <timestamp>-<slug>/: prompt.md, output.md,
+│                                #   <timestamp>-<pid>-<slug>/: prompt.md, output.md,
 │                                #   hermes.log, usage.json, result.json, ...
 ├── .hermes/skills/              # Skills Homefy via Hermes skills.external_dirs
 ├── bin/

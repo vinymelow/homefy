@@ -29,3 +29,11 @@ principais (top-level e ecom-stack/) e responde em no máximo 10 linhas com:
 (NÃO reveles os valores — apenas indica se existe).
 
 Não modifiques nenhum ficheiro. Não acedas à rede. Apenas leitura local.
+
+## Protocolo de saída obrigatório
+
+- Devolve o relatório diretamente como resposta final (stdout do one-shot).
+- Não cries `output.md`, `result.json` nem qualquer outro ficheiro: o executor
+  já é responsável por capturar stdout e criar o contrato estruturado.
+- O relatório deve citar explicitamente `ecom-stack` e
+  `squads/ecommerce-growth`, provando que o diretório correto foi lido.

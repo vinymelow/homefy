@@ -10,8 +10,10 @@ tentativa delegada e grava artefatos.
   `~/.local/bin/hermes` (também disponível para o usuário de sistema `hermes`
   em `/home/hermes/.local/bin/hermes`). O executor escolhe a instalação do
   usuário `hermes` quando ela consegue ler o workdir; senão, a do root.
-- **Modelo default:** Groq `llama-3.3-70b-versatile` (provider/modelo em
-  `~/.hermes/config.yaml`; override por execução com `-m`).
+- **Modelo/configuração:** definidos em `~/.hermes/config.yaml`. Nesta VPS o
+  perfil root usa endpoint customizado; o usuário dedicado usa
+  `openai-api/gpt-4o-mini`. Overrides por execução: `--provider`, `-m` e
+  `--reasoning`.
 - **Modo de execução:** one-shot, `hermes -z "<prompt>" --in <workdir> --usage-file <run>/usage.json`.
 
 ## Contrato do executor
@@ -19,17 +21,20 @@ tentativa delegada e grava artefatos.
 ### Uso
 
 ```bash
-hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [-T timeout]
+hermes-exec.sh -t <slug> -f <prompt_file> [-d workdir] [-m model] [--provider provider] [--reasoning level] [-T timeout]
 hermes-exec.sh -t <slug> -p "prompt inline" [-d workdir]
 ```
 
 | Argumento | Obrigatório | Descrição |
 |---|---|---|
-| `-t` / `--task` | sim | Slug da task (vira `<timestamp>-<slug>` do run) |
+| `-t` / `--task` | sim | Slug da task (vira `<timestamp>-<pid>-<slug>` do run) |
 | `-f` / `--prompt-file` | sim* | Arquivo de prompt (copiado para o run) |
 | `-p` / `--prompt` | sim* | Prompt inline (alternativa a `-f`) |
 | `-d` / `--workdir` | não | Diretório de trabalho (default: cwd) |
 | `-m` / `--model` | não | Override de modelo do Hermes |
+| `--provider` | não | Override de provider do Hermes |
+| `--reasoning` | não | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` ou `ultra` |
+| `-u` / `--toolsets` | não | Lista separada por vírgulas (default: `terminal,file`) |
 | `-T` / `--timeout` | não | Timeout em minutos (default: 20, alinhado com `modelGovernance.timeouts.defaultMinutes`) |
 | `-r` / `--run-dir` | não | Base dos runs (default: `.aiox/external-runs`) |
 
@@ -44,7 +49,8 @@ hermes-exec.sh -t <slug> -p "prompt inline" [-d workdir]
 | `REJECTED` | Pré-checks falharam: workdir ilegível/inexistente, prompt vazio, prompt-file ilegível, Hermes ausente | 65/69 |
 
 **Detecção de erro fatal com exit 0:** o Hermes pode terminar com exit 0 mesmo
-em erro fatal (ex.: HTTP 404 de modelo). O executor varre `output.md` e
+em erro fatal (ex.: HTTP 404 de modelo). O executor verifica também
+`usage.json.failed` e varre `output.md` e
 `hermes.log` pelos padrões `HTTP [45]xx`, `does not exist or you do not have
 access`, `Invalid API key`, `Traceback`, `Connection refused`,
 `NameResolutionError` e faz downgrade de SUCCESS → FAILED.
@@ -52,12 +58,12 @@ access`, `Invalid API key`, `Traceback`, `Connection refused`,
 ### Saída stdout (key=value)
 
 ```
-STATUS=started|finished|failed|timeout|rejected
+STATUS=started|success|partial|failed|timeout|rejected
 RUN_DIR=...        OUTPUT=...        PROMPT=...
 COMMAND=...        EXIT_CODE=...     RESULT_JSON=...
 ```
 
-### Artefatos por run (`.aiox/external-runs/<timestamp>-<slug>/`)
+### Artefatos por run (`.aiox/external-runs/<timestamp>-<pid>-<slug>/`)
 
 | Arquivo | Conteúdo |
 |---|---|
@@ -79,7 +85,7 @@ locais; revise-os antes de partilhar (podem conter dados sensíveis da tarefa).
 
 ```json
 {
-  "run_id": "20260924-091225-e2e-integration-test",
+  "run_id": "20260924-091225-12345-e2e-integration-test",
   "task": "e2e-integration-test",
   "status": "FAILED",
   "started_at": "...", "finished_at": "...",
@@ -102,7 +108,7 @@ locais; revise-os antes de partilhar (podem conter dados sensíveis da tarefa).
 Exemplo de inspeção rápida:
 
 ```bash
-RUN=.aiox/external-runs/<timestamp>-<slug>
+RUN=.aiox/external-runs/<timestamp>-<pid>-<slug>
 cat $RUN/result.json | python3 -c "import json,sys; r=json.load(sys.stdin); print(r['status'], r['exit_code'], r['output_bytes'])"
 ```
 
@@ -148,7 +154,7 @@ workflows/executors/hermes-exec.sh -t smoke-test-project-structure \
 # Prompt inline com modelo e timeout customizados
 workflows/executors/hermes-exec.sh -t analise-rapida \
   -p "Resume em 5 linhas a estrutura de ecom-stack/" \
-  -d /root/homefy -m llama-3.3-70b-versatile -T 10
+  -d /root/homefy --provider openai-api -m gpt-5-mini --reasoning low -T 10
 
 # Inspeção do resultado
 cat .aiox/external-runs/<run>/result.json

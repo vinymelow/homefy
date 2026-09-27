@@ -80,7 +80,7 @@ a implementação delegada. O script `workflows/executors/hermes-exec.sh`:
 1. faz pré-checks (workdir legível, prompt não vazio, Hermes presente) —
    falha aqui = `REJECTED`;
 2. executa `hermes -z` com timeout (default 20 min, `-T` para ajustar);
-3. grava artefatos por run em `.aiox/external-runs/<timestamp>-<slug>/`:
+3. grava artefatos por run em `.aiox/external-runs/<timestamp>-<pid>-<slug>/`:
    `prompt.md`, `command.txt`, `output.md`, `hermes.log`, `usage.json`,
    `result.json`, `metadata.json`, `artifacts/`;
 4. classifica o resultado: `SUCCESS` / `PARTIAL` / `FAILED` / `TIMEOUT` /

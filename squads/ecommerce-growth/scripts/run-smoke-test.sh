@@ -14,9 +14,10 @@
 #   - Executor: workflows/executors/hermes-exec.sh
 #     -t smoke-test-$(date +%H%M%S)   slug único por execução
 #     -f squads/ecommerce-growth/tasks/smoke-test-project-structure.md
-#     -d /root/homefy                 workdir do projeto
+#     -d <repo-root>                  workdir do projeto auto-detectado
 #     -T 10                           timeout de 10 minutos
-#   - Exit 0 se result.json.status for SUCCESS ou PARTIAL.
+#   - Exit 0 somente se result.json.status for SUCCESS e a saída comprovar que
+#     leu ecom-stack + squads/ecommerce-growth.
 #   - Exit 1 para qualquer outro status (FAILED / TIMEOUT / REJECTED) ou se o
 #     result.json não for produzido.
 #
@@ -26,9 +27,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 HERMES_EXEC="$ROOT/workflows/executors/hermes-exec.sh"
 TASK_FILE="$ROOT/squads/ecommerce-growth/tasks/smoke-test-project-structure.md"
-WORKDIR="/root/homefy"
+WORKDIR="$ROOT"
 TIMEOUT_MIN=10
 SLUG="smoke-test-$(date +%H%M%S)"
+MODEL="${HOMEFY_HERMES_MODEL:-}"
+PROVIDER="${HOMEFY_HERMES_PROVIDER:-}"
+REASONING="${HOMEFY_HERMES_REASONING:-}"
 
 if [[ ! -x "$HERMES_EXEC" ]]; then
   echo "ERRO: executor não encontrado ou sem permissão de execução: $HERMES_EXEC" >&2
@@ -45,8 +49,13 @@ echo "== run-smoke-test: slug=$SLUG workdir=$WORKDIR timeout=${TIMEOUT_MIN}m =="
 
 # O executor pode sair não-zero (failed=1, timeout=124); capturamos o exit code
 # sem abortar o script para conseguirmos inspecionar o result.json.
+EXEC_ARGS=(-t "$SLUG" -f "$TASK_FILE" -d "$WORKDIR" -T "$TIMEOUT_MIN")
+[[ -n "$MODEL" ]] && EXEC_ARGS+=(-m "$MODEL")
+[[ -n "$PROVIDER" ]] && EXEC_ARGS+=(--provider "$PROVIDER")
+[[ -n "$REASONING" ]] && EXEC_ARGS+=(--reasoning "$REASONING")
+
 set +e
-EXEC_OUT="$("$HERMES_EXEC" -t "$SLUG" -f "$TASK_FILE" -d "$WORKDIR" -T "$TIMEOUT_MIN")"
+EXEC_OUT="$("$HERMES_EXEC" "${EXEC_ARGS[@]}")"
 EXEC_EXIT=$?
 set -e
 printf '%s\n' "$EXEC_OUT"
@@ -72,13 +81,21 @@ except Exception as e:
 PY
 )"
 
-case "$STATUS" in
-  SUCCESS|PARTIAL)
-    echo "SMOKE TEST OK: status=$STATUS (executor exit=$EXEC_EXIT)"
-    exit 0
-    ;;
-  *)
-    echo "SMOKE TEST FALHOU: status=$STATUS (executor exit=$EXEC_EXIT)" >&2
-    exit 1
-    ;;
-esac
+if [[ "$STATUS" != "SUCCESS" ]]; then
+  echo "SMOKE TEST FALHOU: status=$STATUS (executor exit=$EXEC_EXIT)" >&2
+  exit 1
+fi
+
+OUTPUT_PATH="$(python3 - "$RESULT_JSON" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    print(json.load(handle).get("artifacts", {}).get("output", ""))
+PY
+)"
+if [[ ! -r "$OUTPUT_PATH" ]] || ! grep -q 'ecom-stack' "$OUTPUT_PATH" || \
+   ! grep -q 'squads/ecommerce-growth' "$OUTPUT_PATH"; then
+  echo "SMOKE TEST FALHOU: saída não comprovou leitura da estrutura Homefy" >&2
+  exit 1
+fi
+
+echo "SMOKE TEST OK: status=$STATUS, estrutura Homefy confirmada (executor exit=$EXEC_EXIT)"

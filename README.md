@@ -146,12 +146,13 @@ workflows/executors/hermes-exec.sh -t research-product \
 ```
 
 O executor imprime `STATUS`, `RUN_DIR`, `OUTPUT` e `RESULT_JSON`, e grava em
-`.aiox/external-runs/<timestamp>-<slug>/`: `prompt.md`, `command.txt`,
+`.aiox/external-runs/<timestamp>-<pid>-<slug>/`: `prompt.md`, `command.txt`,
 `output.md`, `hermes.log`, `usage.json`, `result.json`, `metadata.json` e o
 diretório `artifacts/`. **Leia sempre o `result.json`** — o campo `status`
 (`SUCCESS`/`PARTIAL`/`FAILED`/`TIMEOUT`/`REJECTED`) é o veredito da execução;
 `PARTIAL` exige revisão humana antes de prosseguir. Opções: `-p "prompt inline"`,
-`-m <modelo>` (override), `-T <minutos>` (timeout, default 20), `-d <workdir>`.
+`-m <modelo>`/`--provider`/`--reasoning` (overrides), `-u <toolsets>`,
+`-T <minutos>` (timeout, default 20) e `-d <workdir>`.
 
 **Workflows** — os 3 workflows do squad (`workflows/*.yaml`) descrevem cadeias de
 fases com gates de validação. A execução é **fase a fase, via executor** (cada
