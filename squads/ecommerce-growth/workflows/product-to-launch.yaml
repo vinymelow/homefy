@@ -29,7 +29,7 @@ workflow:
     Gate final: human_approval obrigatório — o step publish é
     manual_approval bloqueado por default e nenhuma publicação (Shopify,
     Meta, TikTok) ocorre sem aprovação humana explícita registada.
-  orchestrator: "@ecommerce-master"
+  orchestrator: "ecommerce-master"
 
   # ============================================
   # Triggers
@@ -117,7 +117,7 @@ workflow:
       phase: 1_pagina
       type: sub_workflow
       workflow: "workflows/product-to-page.yaml"
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       executor: "orquestrador AIOX (não usa hermes-exec diretamente)"
       timeout: "60m"
       inputs:
@@ -147,7 +147,7 @@ workflow:
       name: "Geração do creative brief"
       phase: 2_criativos_tracking
       task: "tasks/generate-creative-brief.md"
-      agent: "@creative-director"
+      agent: "creative-director"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t generate-creative-brief
@@ -180,7 +180,7 @@ workflow:
       name: "Configuração e teste de tracking"
       phase: 2_criativos_tracking
       task: "tasks/build-shopify-page.md"
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t setup-tracking
@@ -217,7 +217,7 @@ workflow:
       name: "Preparação do lançamento"
       phase: 3_lancamento
       task: "tasks/prepare-launch.md"
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t prepare-launch
@@ -251,7 +251,7 @@ workflow:
       name: "Auditoria Shopify do tema"
       phase: 3_lancamento
       task: "tasks/audit-shopify.md"
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t audit-shopify
@@ -288,7 +288,7 @@ workflow:
       name: "QA final de lançamento (gate obrigatório)"
       phase: 4_qa_final
       task: "tasks/audit-page.md"
-      agent: "@qa-specialist"
+      agent: "qa-specialist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t final-qa
@@ -335,7 +335,7 @@ workflow:
       type: manual_approval
       blocked_by_default: true
       requires_human_approval: true
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       executor: "nenhum — step manual executado pelo operador humano"
       inputs:
         upstream_artifacts:
@@ -362,7 +362,7 @@ workflow:
   sequence:
     - step: run_product_to_page
       id: product-to-page
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       task: "workflows/product-to-page.yaml"
       action: "Executar sub-workflow completo de página (gate QA PASS)"
       creates: landing_page_qa_pass
@@ -371,7 +371,7 @@ workflow:
 
     - step: generate_creative_brief
       id: generate-creative-brief
-      agent: "@creative-director"
+      agent: "creative-director"
       task: "tasks/generate-creative-brief.md"
       action: "Gerar creative brief por slot de criativo"
       requires: landing_page_qa_pass
@@ -381,7 +381,7 @@ workflow:
 
     - step: setup_tracking
       id: setup-tracking
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       task: "tasks/build-shopify-page.md"
       action: "Configurar e testar pixel + CAPI (Purchase verificado)"
       requires: creative_brief
@@ -391,7 +391,7 @@ workflow:
 
     - step: prepare_launch
       id: prepare-launch
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       task: "tasks/prepare-launch.md"
       action: "Definir plano de teste (orçamento, países, métricas)"
       requires: tracking_report
@@ -401,7 +401,7 @@ workflow:
 
     - step: audit_shopify
       id: audit-shopify
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       task: "tasks/audit-shopify.md"
       action: "Auditar tema: Liquid, responsivo, mídia, zero secrets"
       requires: launch_report
@@ -411,7 +411,7 @@ workflow:
 
     - step: final_qa
       id: final-qa
-      agent: "@qa-specialist"
+      agent: "qa-specialist"
       task: "tasks/audit-page.md"
       action: "QA final sobre os 6 checklists (inclui launch.md)"
       requires: shopify_audit
@@ -423,7 +423,7 @@ workflow:
 
     - step: publish_launch
       id: publish
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       task: "manual-approval"
       action: "Publicar apenas após aprovação humana explícita (GO registado)"
       requires: final_qa_report

@@ -28,7 +28,7 @@ workflow:
     build-landing-page → QA (audit-page com qa-specialist).
     Gate: QA PASS obrigatório — sem qa_report.verdict == PASS a página
     NÃO é considerada pronta e o workflow não fecha.
-  orchestrator: "@ecommerce-master"
+  orchestrator: "ecommerce-master"
 
   # ============================================
   # Triggers
@@ -117,7 +117,7 @@ workflow:
       name: "Pesquisa de produto"
       phase: 1_pesquisa
       task: "tasks/research-product.md"
-      agent: "@product-researcher"
+      agent: "product-researcher"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t research-product
@@ -147,7 +147,7 @@ workflow:
       name: "Pesquisa de mercado"
       phase: 1_pesquisa
       task: "tasks/research-market.md"
-      agent: "@market-researcher"
+      agent: "market-researcher"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t research-market
@@ -179,7 +179,7 @@ workflow:
       name: "Análise de concorrentes"
       phase: 1_pesquisa
       task: "tasks/analyze-competitors.md"
-      agent: "@market-researcher"
+      agent: "market-researcher"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t analyze-competitors
@@ -216,7 +216,7 @@ workflow:
       name: "Criação do avatar de cliente"
       phase: 2_estrategia
       task: "tasks/create-customer-avatar.md"
-      agent: "@market-researcher"
+      agent: "market-researcher"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t create-customer-avatar
@@ -249,7 +249,7 @@ workflow:
       name: "Criação da oferta"
       phase: 2_estrategia
       task: "tasks/create-offer.md"
-      agent: "@offer-strategist"
+      agent: "offer-strategist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t create-offer
@@ -283,7 +283,7 @@ workflow:
       name: "Criação do posicionamento"
       phase: 2_estrategia
       task: "tasks/create-positioning.md"
-      agent: "@offer-strategist"
+      agent: "offer-strategist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t create-positioning
@@ -318,7 +318,7 @@ workflow:
       name: "Criação da copy"
       phase: 3_copy
       task: "tasks/create-copy.md"
-      agent: "@copywriter"
+      agent: "copywriter"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t create-copy
@@ -353,7 +353,7 @@ workflow:
       name: "Especificação da página"
       phase: 3_copy
       task: "tasks/create-page-spec.md"
-      agent: "@ux-designer"
+      agent: "ux-designer"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t create-page-spec
@@ -391,7 +391,7 @@ workflow:
       name: "Construção da landing page"
       phase: 4_build
       task: "tasks/build-landing-page.md"
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t build-landing-page
@@ -428,7 +428,7 @@ workflow:
       name: "QA da página (gate obrigatório)"
       phase: 5_qa
       task: "tasks/audit-page.md"
-      agent: "@qa-specialist"
+      agent: "qa-specialist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t audit-page
@@ -470,7 +470,7 @@ workflow:
   sequence:
     - step: research_product
       id: research-product
-      agent: "@product-researcher"
+      agent: "product-researcher"
       task: "tasks/research-product.md"
       action: "Pesquisar produto e verificar specs/claims"
       creates: product_report
@@ -479,7 +479,7 @@ workflow:
 
     - step: research_market
       id: research-market
-      agent: "@market-researcher"
+      agent: "market-researcher"
       task: "tasks/research-market.md"
       action: "Pesquisar demanda, ângulos e VOC do mercado"
       requires: product_report
@@ -489,7 +489,7 @@ workflow:
 
     - step: analyze_competitors
       id: analyze-competitors
-      agent: "@market-researcher"
+      agent: "market-researcher"
       task: "tasks/analyze-competitors.md"
       action: "Desagregar 3 referências e ads vencedores"
       requires: market_report
@@ -499,7 +499,7 @@ workflow:
 
     - step: create_customer_avatar
       id: create-customer-avatar
-      agent: "@market-researcher"
+      agent: "market-researcher"
       task: "tasks/create-customer-avatar.md"
       action: "Consolidar avatares, desejos e objeções"
       requires: competitor_analysis
@@ -509,7 +509,7 @@ workflow:
 
     - step: create_offer
       id: create-offer
-      agent: "@offer-strategist"
+      agent: "offer-strategist"
       task: "tasks/create-offer.md"
       action: "Definir bundles, painel grátis e garantia"
       requires: customer_avatar
@@ -519,7 +519,7 @@ workflow:
 
     - step: create_positioning
       id: create-positioning
-      agent: "@offer-strategist"
+      agent: "offer-strategist"
       task: "tasks/create-positioning.md"
       action: "Definir promessa central e diferenciação"
       requires: offer_brief
@@ -529,7 +529,7 @@ workflow:
 
     - step: create_copy
       id: create-copy
-      agent: "@copywriter"
+      agent: "copywriter"
       task: "tasks/create-copy.md"
       action: "Escrever headline, benefícios, FAQ e CTA"
       requires: positioning
@@ -539,7 +539,7 @@ workflow:
 
     - step: create_page_spec
       id: create-page-spec
-      agent: "@ux-designer"
+      agent: "ux-designer"
       task: "tasks/create-page-spec.md"
       action: "Especificar secções, slots e requisitos responsivos"
       requires: copy_deck
@@ -549,7 +549,7 @@ workflow:
 
     - step: build_landing_page
       id: build-landing-page
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       task: "tasks/build-landing-page.md"
       action: "Construir página conforme spec e copy"
       requires: page_spec
@@ -559,7 +559,7 @@ workflow:
 
     - step: audit_page
       id: audit-page
-      agent: "@qa-specialist"
+      agent: "qa-specialist"
       task: "tasks/audit-page.md"
       action: "Auditar página contra os 4 checklists e emitir verdict"
       requires: landing_page

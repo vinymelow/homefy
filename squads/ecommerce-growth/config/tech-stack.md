@@ -20,7 +20,8 @@
 
 ## 3. AIOX Core 5.4.1 — orquestração
 - Instalado em `.aiox-core/` (framework — **não editar à mão**).
-- CLI local via wrapper: `bin/aiox.js` (invoca `.aiox-core/cli/index.js`).
+- CLI local via wrapper: `bin/aiox.js` para subcomandos de trabalho listados;
+  gestão/diagnóstico pelo entrypoint oficial `npx --yes aiox-core@5.4.1`.
 - Operações de framework (install/validate/doctor) via
   `npx aiox-core@5.4.1` — **nunca** `npx aiox-core install --force` sem avaliar
   conflitos (`AGENTS.md` regra 2).
@@ -33,8 +34,8 @@
   `hermes` — `hermes-exec.sh` escolhe automaticamente).
 - Execução one-shot: `hermes -z "<prompt>" --in <workdir>` com `--usage-file`
   para telemetria; override de modelo com `-m`.
-- **Modelo primário do runtime: Hermes/Groq — default `llama-3.3-70b-versatile`**
-  (configuração do Hermes do operador; `-m <modelo>` sobrepõe por execução).
+- **Modelo primário atual: `openai/gpt-oss-120b` em endpoint customizado**
+  (configuração privada do operador; `-m <modelo>` sobrepõe por execução).
 - Governança de modelos: `modelGovernance` em `.aiox-core/core-config.yaml` —
   teto de orçamento ($20/dia, $200/mês, ação `block_and_notify`), timeouts
   (default 20 min, long-running 60 min, browser automation 10 min),
@@ -43,8 +44,10 @@
 - **Browser automation (playwright): PENDENTE na VPS** — módulo não instalado;
   tasks que exijam browser falham até a instalação da dependência de sistema.
 - **MCP: suporte nativo no Hermes** via `hermes mcp` (add/remove/list/test/
-  serve/configure); nenhum servidor MCP está configurado no projeto neste
-  momento (não existe `.claude/mcp.json` no repo).
+  serve/configure); nenhum servidor está ativo. `.claude/mcp.json` existe com
+  `mcpServers` vazio para registrar explicitamente essa decisão conservadora.
+- **Skills Homefy:** cinco skills locais em `.hermes/skills/`, registradas no
+  runtime por `skills.external_dirs` em `~/.hermes/config.yaml`.
 
 ## 5. Ponte AIOX → Hermes
 - `workflows/executors/hermes-exec.sh` (External Executor pattern):

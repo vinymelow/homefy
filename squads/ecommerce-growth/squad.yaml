@@ -80,6 +80,10 @@ components:
     - launch-report.md
   tools:
     - validate-squad.js
+  scripts:
+    - run-smoke-test.sh
+  data:
+    - knowledge-map.md
 
 config:
   extends: extend

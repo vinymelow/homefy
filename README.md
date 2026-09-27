@@ -50,8 +50,9 @@ O **AIOX Core** (`.aiox-core/`, versão 5.4.1) é o framework de orquestração.
 - projeta os agents para os IDEs/editores via **ideSync** (source of truth em
   `.aiox-core/development/agents` → `.kimi/`, `.codex/`, `.claude/`, `.gemini/`,
   `.cursor/`, `.antigravity/`, `.github/`) — nunca edite projeções à mão;
-- fornece a CLI local (`bin/aiox.js`) e os validadores oficiais via
-  `npx aiox-core@5.4.1`.
+- fornece comandos locais de trabalho em `bin/aiox.js`; operações de gestão,
+  versão, integridade e diagnóstico usam o entrypoint oficial
+  `npx --yes aiox-core@5.4.1`.
 
 O AIOX **não executa** o trabalho: ele orquestra e delega.
 
@@ -62,8 +63,8 @@ O **Hermes Agent** (v0.20.2, instalado pelo usuário fora deste repositório em
 runtime de execução. Ele:
 
 - executa prompts em modo one-shot (`hermes -z`) delegados pelo orquestrador;
-- usa como modelo default o **Groq `llama-3.3-70b-versatile`** (override por
-  execução com `-m`; provider/modelo configurados em `~/.hermes/config.yaml`);
+- usa o modelo configurado no runtime (nesta VPS, `openai/gpt-oss-120b` em
+  endpoint customizado; override por execução com `-m`);
 - dispõe de skills e MCP, e escreve a utilização de tokens em `usage.json`;
 - integra-se ao projeto pelo executor `workflows/executors/hermes-exec.sh`, que
   aplica pré-checks, timeout (default 20 min) e classificação de status
@@ -93,7 +94,9 @@ Detalhes em `docs/agents.md` e `docs/workflows.md`.
 ## Como instalar
 
 O **AIOX Core já vem no repositório** (`.aiox-core/`, alinhado com o manifesto de
-instalação) — não é preciso instalá-lo. A CLI local é o wrapper `bin/aiox.js`.
+instalação) — não é preciso instalá-lo. Use o wrapper `bin/aiox.js` apenas para
+os subcomandos locais que ele lista; para `--version`, `info`, `validate` e
+`doctor`, use o pacote oficial fixado em `5.4.1`, como abaixo.
 
 O **Hermes é instalado pelo usuário, fora do repositório**:
 
@@ -112,8 +115,9 @@ Ver `ecom-stack/docs/setup-vps.md` para o passo a passo completo.
 
 ```bash
 # Integridade da instalação AIOX e diagnósticos do framework
-npx aiox-core@5.4.1 validate
-npx aiox-core@5.4.1 doctor
+npx --yes aiox-core@5.4.1 --version -d
+npx --yes aiox-core@5.4.1 validate
+npx --yes aiox-core@5.4.1 doctor
 
 # Validação do squad contra o schema oficial
 node squads/ecommerce-growth/tools/validate-squad.js ecommerce-growth
@@ -180,7 +184,7 @@ homefy/
 ├── .aiox-core/                  # AIOX Core 5.4.1 (framework — não editar à mão)
 ├── .aiox/
 │   └── external-runs/           # artefatos por run do executor (gitignored)
-├── .hermes/skills/              # staging de skills Hermes específicas do projeto
+├── .hermes/skills/              # skills do projeto carregadas via external_dirs
 ├── bin/
 │   └── aiox.js                  # wrapper da CLI AIOX local
 ├── docs/                        # documentação do projeto (arquitetura, agentes, …)

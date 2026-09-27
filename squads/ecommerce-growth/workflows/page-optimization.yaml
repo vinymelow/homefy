@@ -28,7 +28,7 @@ workflow:
     Gate: o experimento só inicia com hipótese registrada e métrica-alvo
     definida com baseline; a hipótese #1 validada é o único trabalho
     implementado por iteração (uma variável de cada vez).
-  orchestrator: "@ecommerce-master"
+  orchestrator: "ecommerce-master"
 
   # ============================================
   # Triggers
@@ -124,7 +124,7 @@ workflow:
       name: "Auditoria CRO da página"
       phase: 1_diagnostico
       task: "tasks/audit-cro.md"
-      agent: "@cro-specialist"
+      agent: "cro-specialist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t audit-cro
@@ -161,7 +161,7 @@ workflow:
       name: "Hipóteses priorizadas (gate de entrada do experimento)"
       phase: 1_diagnostico
       task: "tasks/audit-cro.md"
-      agent: "@cro-specialist"
+      agent: "cro-specialist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t prioritize-hypotheses
@@ -201,7 +201,7 @@ workflow:
       name: "Implementação da hipótese #1"
       phase: 2_implementacao
       task: "tasks/build-landing-page.md"
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t implement-change
@@ -241,7 +241,7 @@ workflow:
       name: "QA da página otimizada (gate obrigatório)"
       phase: 3_qa
       task: "tasks/audit-page.md"
-      agent: "@qa-specialist"
+      agent: "qa-specialist"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t qa-page
@@ -283,7 +283,7 @@ workflow:
       name: "Relatório do experimento"
       phase: 4_relatorio
       task: "tasks/audit-cro.md"
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       executor: "workflows/executors/hermes-exec.sh"
       command: >-
         workflows/executors/hermes-exec.sh -t report-experiment
@@ -318,7 +318,7 @@ workflow:
   sequence:
     - step: audit_cro
       id: audit-cro
-      agent: "@cro-specialist"
+      agent: "cro-specialist"
       task: "tasks/audit-cro.md"
       action: "Auditar página contra dados de performance"
       creates: cro_audit
@@ -327,7 +327,7 @@ workflow:
 
     - step: prioritize_hypotheses
       id: prioritize-hypotheses
-      agent: "@cro-specialist"
+      agent: "cro-specialist"
       task: "tasks/audit-cro.md"
       action: "Priorizar hipóteses com métrica-alvo e baseline"
       requires: cro_audit
@@ -337,7 +337,7 @@ workflow:
 
     - step: implement_change
       id: implement-change
-      agent: "@shopify-engineer"
+      agent: "shopify-engineer"
       task: "tasks/build-landing-page.md"
       action: "Implementar hipótese #1 (uma variável)"
       requires: hypotheses
@@ -348,7 +348,7 @@ workflow:
 
     - step: qa_page
       id: qa-page
-      agent: "@qa-specialist"
+      agent: "qa-specialist"
       task: "tasks/audit-page.md"
       action: "Regression QA sobre a página otimizada"
       requires: page_variant
@@ -360,7 +360,7 @@ workflow:
 
     - step: report_experiment
       id: report-experiment
-      agent: "@ecommerce-master"
+      agent: "ecommerce-master"
       task: "tasks/audit-cro.md"
       action: "Consolidar relatório do experimento e decisão"
       requires: qa_report

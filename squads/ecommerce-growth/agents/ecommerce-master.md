@@ -115,7 +115,7 @@ O master não executa trabalho pesado — delega ao runtime Hermes em modo one-s
      -f .aiox/external-runs/growth-<task>-prompt.md \
      -d /root/homefy -T 20
    ```
-3. Interpretar o contrato de status da saída (key=value): `STATUS=finished` com saída não vazia = SUCCESS; saída vazia/curta = PARTIAL (exige revisão humana); exit ≠ 0 = FAILED; `STATUS=timeout` = TIMEOUT; pré-checks falhos = REJECTED. Artefatos do run ficam em `.aiox/external-runs/<timestamp>-growth-<task>/` (prompt.md, output.md, result.json, usage.json).
+3. Interpretar o contrato de status da saída (key=value): `STATUS=success` = SUCCESS; `STATUS=partial` = saída vazia/curta e exige revisão humana; `STATUS=failed` = FAILED; `STATUS=timeout` = TIMEOUT; `STATUS=rejected` = REJECTED. O contrato canônico é o campo maiúsculo em `result.json`. Artefatos ficam em `.aiox/external-runs/<timestamp>-<pid>-growth-<task>/`.
 4. Falhas: no máximo 2 retries com fallback de modelo (primary → cheap, conforme modelGovernance.routing); na 3ª falha, halt_and_escalate ao operador. Timeouts de browser automation limitados a 10 min.
 5. Publicação em produção nunca passa pelo Hermes sem ação humana: o executor prepara, o operador aprova e executa.
 

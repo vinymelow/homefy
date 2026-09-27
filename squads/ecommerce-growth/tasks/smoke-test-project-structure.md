@@ -1,3 +1,21 @@
+---
+task: smokeTestProjectStructure()
+responsavel: "@ecommerce-master"
+responsavel_type: Agente
+atomic_layer: Analysis
+Entrada: |
+  - project_root: diretório local do Homefy, somente leitura
+  - task_scope: estrutura top-level e ecom-stack/
+Saida: |
+  - structure_report: resumo de no máximo 10 linhas em output.md
+  - result_contract: result.json com status e metadados da execução
+Checklist:
+  - "[ ] Não modificar ficheiros"
+  - "[ ] Não acessar a rede"
+  - "[ ] Não revelar valores de .env"
+  - "[ ] Listar componentes principais e quantidade aproximada de ficheiros"
+---
+
 # Task: smoke-test-project-structure (TESTE NÃO DESTRUTIVO)
 
 **Objetivo**: validar a cadeia AIOX → task → Hermes → resultado.

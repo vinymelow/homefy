@@ -130,10 +130,12 @@ nesta VPS**. Enquanto não são instalados:
 - `hermes doctor` lista o estado das dependências — trate os itens de browser
   como pendência conhecida, não como regressão.
 
-Skills Hermes: as específicas do projeto fazem staging em `.hermes/skills/`;
-o Hermes também tem skills de hub instaladas em `~/.hermes/skills/` (fora do
-repo). Configuração de provider/chaves em `~/.hermes/config.yaml` e
-`~/.hermes/.env` — nunca no repositório.
+Skills Hermes: as cinco skills específicas do projeto vivem em
+`.hermes/skills/` e são descobertas pelo runtime por
+`skills.external_dirs: [/root/homefy/.hermes/skills]` em
+`~/.hermes/config.yaml`. As skills builtin/hub continuam em
+`~/.hermes/skills/` (fora do repo). Configuração de provider/chaves fica em
+`~/.hermes/config.yaml` e `~/.hermes/.env` — nunca no repositório.
 
 ## Exemplos
 

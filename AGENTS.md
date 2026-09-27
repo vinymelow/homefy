@@ -8,7 +8,7 @@ Runtime de execução: **Hermes Agent** (instalado por usuário, fora deste repo
 ```
 homefy/
 ├── .aiox-core/              # Framework AIOX (orquestração — não editar à mão)
-├── .hermes/skills/          # Skills Hermes específicas do projeto (staging)
+├── .hermes/skills/          # Skills do projeto; Hermes carrega via skills.external_dirs
 ├── ecom-stack/              # Stack operacional original (CLI, prompts, templates)
 │   ├── cli/cli.py           # CLI do projeto: python3 cli/cli.py ajuda
 │   ├── config/              # config.example.env (variáveis de ambiente)

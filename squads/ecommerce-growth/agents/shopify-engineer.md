@@ -115,7 +115,7 @@ Builds de maior porte (página completa a partir de spec + copy + assets) podem 
      -d /root/homefy -T 60
    ```
    Builds longos usam timeout de 60 min, conforme modelGovernance.timeouts.longRunningMinutes.
-3. Revisar o diff da saída contra a spec antes de aceitar: STATUS=finished não substitui revisão — divergências de spec são corrigidas. FAILED/TIMEOUT após 2 retries com fallback de modelo → halt_and_escalate ao master.
+3. Revisar o diff da saída contra a spec antes de aceitar: STATUS=success não substitui revisão — divergências de spec são corrigidas. FAILED/TIMEOUT após 2 retries com fallback de modelo → halt_and_escalate ao master.
 4. Publicação nunca é delegada: o Hermes prepara em preview; o operador humano aprova e publica.
 
 ## Referências

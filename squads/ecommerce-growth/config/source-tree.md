@@ -20,7 +20,7 @@ homefy/
 │   └── external-runs/           # Artefatos de execução Hermes (GITIGNORED)
 │                                #   <timestamp>-<slug>/: prompt.md, output.md,
 │                                #   hermes.log, usage.json, result.json, ...
-├── .hermes/skills/              # Skills Hermes específicas do projeto (staging)
+├── .hermes/skills/              # Skills Homefy via Hermes skills.external_dirs
 ├── bin/
 │   └── aiox.js                  # Wrapper CLI local do AIOX (requiere .aiox-core/cli)
 ├── ecom-stack/                  # Stack operacional original (não remover/renomear)
@@ -75,10 +75,11 @@ tem `prompt.md`, `command.txt`, `output.md`, `hermes.log`, `usage.json`,
 `result.json` e `metadata.json`. São artefactos de diagnóstico — não versionar,
 não usar como fonte de verdade de produto.
 
-### `.hermes/skills/` — skills Hermes do projeto (staging)
-Diretório onde skills específicas do projeto são disponibilizadas ao runtime
-Hermes. Hoje está vazio (só `.gitkeep`); skills ativas vivem em `skills/` e
-`ecom-stack/skills/`.
+### `.hermes/skills/` — skills Hermes do projeto
+Contém cinco skills operacionais (`homefy-browser-research`, `homefy-shopify`,
+`homefy-page-build`, `homefy-page-audit`, `homefy-github`). O runtime as carrega
+diretamente por `skills.external_dirs` em `~/.hermes/config.yaml`; não há cópia
+para o diretório global.
 
 ### `.kimi/ .codex/ .claude/ .gemini/ .cursor/ .antigravity/ .github/` — projeções de IDE
 Cada diretório é a **projeção sincronizada** do AIOX para um IDE/agente
